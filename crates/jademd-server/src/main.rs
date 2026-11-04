@@ -334,7 +334,32 @@ async fn create_note(
     let lock = state.vault.read().await;
     match &*lock {
         Some(v) => {
-            let initial_content = format!("# {}\n\n", std::path::Path::new(&payload.path).file_stem().and_then(|s| s.to_str()).unwrap_or("Nueva Nota"));
+            let initial_content = if payload.path.ends_with(".canvas") {
+                r#"{"nodes":[],"edges":[]}"#.to_string()
+            } else if payload.path.ends_with(".excalidraw.md") {
+                r#"---
+
+excalidraw-plugin: parsed
+tags: [excalidraw]
+
+---
+==⚠  Switch to EXCALIDRAW VIEW in Jademd. ⚠==
+
+# Excalidraw Data
+
+## Text Elements
+%%
+## Drawing
+```compressed-json
+N4KAkARALgngDgUwgLgAQQQDwMYEMA2AlgCYBOuA7hADTgQBuCpAzoQPYB2KqATLZMzYBXUtiRoIACyhQ4zZAHoFAc0JRJQgEYA6bGwC2CgF7N6hbEcK4OCtptbErHALRY8RMpWdx8Q1TdIEfARcZgRmBShcZQUebR4ANm0AFho6IIR9BA4oZm4AbXAwUDBSiBJuCAAJAEYAYXoAdQANAE4AazTSyFhESqCiOSR+MsxuZwBWCYAGbQAOaemAdjma
+```
+%%
+"#.to_string()
+            } else if payload.path.ends_with(".excalidraw") {
+                r##"{"type":"excalidraw","version":2,"source":"https://jademd.app","elements":[],"appState":{"theme":"dark","viewBackgroundColor":"#18181b"},"files":{}}"##.to_string()
+            } else {
+                format!("# {}\n\n", std::path::Path::new(&payload.path).file_stem().and_then(|s| s.to_str()).unwrap_or("Nueva Nota"))
+            };
             match v.write_note(&payload.path, &initial_content).await {
                 Ok(meta) => (StatusCode::CREATED, Json(ApiResponse::ok(meta))),
                 Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e.to_string()))),

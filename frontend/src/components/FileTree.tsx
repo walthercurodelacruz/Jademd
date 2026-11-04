@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import { FileNode } from '../types';
 import { useVaultStore } from '../store/useVaultStore';
-import { ChevronDown, ChevronRight, FileText, Folder, FolderPlus, FilePlus, Trash2, LayoutGrid, Image as ImageIcon } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Folder,
+  FolderPlus,
+  FilePlus,
+  Trash2,
+  LayoutGrid,
+  Image as ImageIcon,
+  Palette,
+} from 'lucide-react';
 
 interface Props {
   node: FileNode;
@@ -25,6 +36,19 @@ export const FileTree: React.FC<Props> = ({ node }) => {
     createNewNote(fullPath);
   };
 
+  const handleCreateExcalidrawInFolder = (folderPath: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const name = prompt('Nombre del dibujo Excalidraw (ej: Diagrama de Arquitectura):');
+    if (!name) return;
+    const cleanName = name.endsWith('.excalidraw.md')
+      ? name
+      : name.endsWith('.excalidraw')
+      ? name
+      : `${name}.excalidraw.md`;
+    const fullPath = folderPath ? `${folderPath.replace(/^\//, '')}/${cleanName}` : cleanName;
+    createNewNote(fullPath);
+  };
+
   const handleCreateSubFolder = (folderPath: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const name = prompt('Nombre de la nueva carpeta:');
@@ -37,6 +61,7 @@ export const FileTree: React.FC<Props> = ({ node }) => {
     const isDir = item.is_dir;
     const isSelected = activePath === item.path;
     const isExp = expanded[item.path] ?? (level < 2);
+    const isExcalidraw = item.name.includes('.excalidraw');
 
     return (
       <div key={item.path || item.name} className="select-none text-sm">
@@ -68,6 +93,8 @@ export const FileTree: React.FC<Props> = ({ node }) => {
                 <span className="w-3.5" />
                 {item.name.endsWith('.canvas') ? (
                   <LayoutGrid size={14} className={isSelected ? 'text-jade-400' : 'text-emerald-400/80'} />
+                ) : isExcalidraw ? (
+                  <Palette size={14} className={isSelected ? 'text-purple-400' : 'text-purple-400/90'} />
                 ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(item.name) ? (
                   <ImageIcon size={14} className={isSelected ? 'text-sky-400' : 'text-sky-400/80'} />
                 ) : (
@@ -88,6 +115,13 @@ export const FileTree: React.FC<Props> = ({ node }) => {
                   className="p-1 hover:text-jade-400 hover:bg-obsidian-border rounded"
                 >
                   <FilePlus size={13} />
+                </button>
+                <button
+                  onClick={(e) => handleCreateExcalidrawInFolder(item.path, e)}
+                  title="Nuevo dibujo Excalidraw aquí"
+                  className="p-1 hover:text-purple-400 hover:bg-obsidian-border rounded"
+                >
+                  <Palette size={13} />
                 </button>
                 <button
                   onClick={(e) => handleCreateSubFolder(item.path, e)}

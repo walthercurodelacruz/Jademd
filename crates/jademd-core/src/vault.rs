@@ -162,6 +162,8 @@ impl Vault {
                 let lower = path.to_lowercase();
                 let is_supported = lower.ends_with(".md")
                     || lower.ends_with(".canvas")
+                    || lower.ends_with(".excalidraw")
+                    || lower.ends_with(".excalidrawlib")
                     || lower.ends_with(".png")
                     || lower.ends_with(".jpg")
                     || lower.ends_with(".jpeg")

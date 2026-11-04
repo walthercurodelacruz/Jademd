@@ -6,6 +6,7 @@ import { MarkdownPreview } from './components/MarkdownPreview';
 import { ImageViewer } from './components/ImageViewer';
 import { GraphView } from './components/GraphView';
 import { CanvasView } from './components/CanvasView';
+import { ExcalidrawView } from './components/ExcalidrawView';
 import { BacklinksPanel } from './components/BacklinksPanel';
 import { SearchModal } from './components/SearchModal';
 import { VaultModal } from './components/VaultModal';
@@ -27,8 +28,19 @@ import {
   Image as ImageIcon,
   Edit3,
   BookOpen,
-  Columns
+  Columns,
+  Palette
 } from 'lucide-react';
+
+const isExcalidrawFile = (path?: string | null, content?: string): boolean => {
+  if (!path) return false;
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.excalidraw.md') || lower.endsWith('.excalidraw')) return true;
+  if (content && (content.includes('excalidraw-plugin:') || content.includes('```compressed-json'))) {
+    return true;
+  }
+  return false;
+};
 
 export const App: React.FC = () => {
   const {
@@ -84,6 +96,17 @@ export const App: React.FC = () => {
     const name = prompt('Nombre del nuevo lienzo visual (ej: Mapa Mental):');
     if (!name) return;
     const cleanName = name.endsWith('.canvas') ? name : `${name}.canvas`;
+    createNewNote(cleanName);
+  };
+
+  const handleCreateExcalidrawRoot = () => {
+    const name = prompt('Nombre del dibujo Excalidraw (ej: Diagrama de Red):');
+    if (!name) return;
+    const cleanName = name.endsWith('.excalidraw.md')
+      ? name
+      : name.endsWith('.excalidraw')
+      ? name
+      : `${name}.excalidraw.md`;
     createNewNote(cleanName);
   };
 
@@ -206,6 +229,13 @@ export const App: React.FC = () => {
                 <LayoutGrid size={14} />
               </button>
               <button
+                onClick={handleCreateExcalidrawRoot}
+                title="Nuevo Dibujo Excalidraw (.excalidraw.md)"
+                className="p-1 hover:text-purple-400 hover:bg-obsidian-hover rounded"
+              >
+                <Palette size={14} />
+              </button>
+              <button
                 onClick={handleCreateFolderRoot}
                 title="Nueva Carpeta"
                 className="p-1 hover:text-jade-400 hover:bg-obsidian-hover rounded"
@@ -237,6 +267,7 @@ export const App: React.FC = () => {
               const isActive = tabPath === activePath;
               const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(tabPath);
               const isCanvas = tabPath.endsWith('.canvas');
+              const isExcalidraw = isExcalidrawFile(tabPath);
               const tabTitle = tabPath.replace(/\.md$/, '').split('/').pop() || tabPath;
 
               return (
@@ -253,6 +284,8 @@ export const App: React.FC = () => {
                     <ImageIcon size={13} className={isActive ? 'text-sky-400' : 'text-obsidian-muted'} />
                   ) : isCanvas ? (
                     <LayoutGrid size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                  ) : isExcalidraw ? (
+                    <Palette size={13} className={isActive ? 'text-purple-400' : 'text-purple-400/80'} />
                   ) : (
                     <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
                   )}
@@ -278,7 +311,10 @@ export const App: React.FC = () => {
           </div>
 
           {/* Mode Switcher for Active Markdown Note */}
-          {activePath && !activePath.endsWith('.canvas') && !/\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) && (
+          {activePath &&
+            !activePath.endsWith('.canvas') &&
+            !isExcalidrawFile(activePath, activeContent) &&
+            !/\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) && (
             <div className="flex items-center gap-0.5 bg-obsidian-bg/90 border border-obsidian-border/70 rounded-lg p-0.5 ml-2 flex-shrink-0 shadow-sm">
               <button
                 onClick={() => setNoteMode('live')}
@@ -328,6 +364,8 @@ export const App: React.FC = () => {
               activePath ? (
                 activePath.endsWith('.canvas') ? (
                   <CanvasView />
+                ) : isExcalidrawFile(activePath, activeContent) ? (
+                  <ExcalidrawView />
                 ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
                   <ImageViewer path={activePath} />
                 ) : noteMode === 'reading' ? (
@@ -353,7 +391,7 @@ export const App: React.FC = () => {
                   <p className="text-xs text-obsidian-muted max-w-sm text-center mb-6">
                     Entorno de conocimiento modular impulsado por Rust y CodeMirror 6.
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap justify-center gap-3">
                     <button
                       onClick={handleCreateNoteRoot}
                       className="px-4 py-2 bg-jade-600 hover:bg-jade-500 text-white rounded-lg text-xs font-medium transition shadow-sm"
@@ -365,6 +403,13 @@ export const App: React.FC = () => {
                       className="px-4 py-2 bg-obsidian-card hover:bg-obsidian-hover text-obsidian-text border border-obsidian-border rounded-lg text-xs font-medium transition shadow-sm"
                     >
                       + Nuevo Lienzo (.canvas)
+                    </button>
+                    <button
+                      onClick={handleCreateExcalidrawRoot}
+                      className="px-4 py-2 bg-obsidian-card hover:bg-obsidian-hover text-obsidian-text border border-obsidian-border rounded-lg text-xs font-medium transition shadow-sm flex items-center gap-1.5"
+                    >
+                      <Palette size={14} className="text-purple-400" />
+                      <span>+ Nuevo Dibujo (Excalidraw)</span>
                     </button>
                     <button
                       onClick={() => setViewMode('graph')}
@@ -385,6 +430,8 @@ export const App: React.FC = () => {
                   {activePath ? (
                     activePath.endsWith('.canvas') ? (
                       <CanvasView />
+                    ) : isExcalidrawFile(activePath, activeContent) ? (
+                      <ExcalidrawView />
                     ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
                       <ImageViewer path={activePath} />
                     ) : noteMode === 'reading' ? (

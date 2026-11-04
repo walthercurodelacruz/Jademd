@@ -78,6 +78,26 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
         const cleanTarget = target.trim();
         const options = (opt || '').trim();
 
+        // Handle Excalidraw embeds
+        if (cleanTarget.includes('.excalidraw')) {
+          const title = cleanTarget.replace(/\.(excalidraw|md)$/gi, '').split('/').pop() || cleanTarget;
+          return `<div class="wikilink my-4 p-4 rounded-xl border border-purple-900/60 bg-purple-950/30 hover:border-purple-500/70 hover:bg-purple-950/40 transition cursor-pointer flex items-center justify-between shadow-md select-none" data-target="${cleanTarget}">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg bg-purple-900/50 flex items-center justify-center text-purple-300">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+              </div>
+              <div>
+                <div class="text-sm font-semibold text-white flex items-center gap-2">
+                  <span>${title}</span>
+                  <span class="text-3xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-800/80 text-purple-200">Excalidraw</span>
+                </div>
+                <div class="text-xs text-obsidian-muted mt-0.5">Lienzo de dibujo vectorial • Clic para interactuar</div>
+              </div>
+            </div>
+            <span class="text-xs text-purple-400 font-medium hover:underline flex items-center gap-1">Abrir dibujo &rarr;</span>
+          </div>`;
+        }
+
         let widthStyle = '';
         let heightStyle = '';
         let caption = '';
