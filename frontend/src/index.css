@@ -224,3 +224,29 @@
   margin-right: 0.5rem;
   cursor: pointer;
 }
+
+/* Strict isolation and bounds for embedded Excalidraw */
+.excalidraw-container-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  contain: paint !important;
+}
+
+.excalidraw-container-wrapper .excalidraw {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.excalidraw-container-wrapper .excalidraw .SVGLayer {
+  position: absolute !important;
+  width: 100% !important;
+  height: 100% !important;
+  top: 0 !important;
+  left: 0 !important;
+}

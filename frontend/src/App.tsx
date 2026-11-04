@@ -259,9 +259,9 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-obsidian-bg">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-obsidian-bg min-h-0">
         {/* Tabs Bar */}
-        <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center justify-between px-2 gap-1 select-none flex-shrink-0">
+        <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center justify-between px-2 gap-1 select-none flex-shrink-0 relative z-30 shadow-xs">
           <div className="flex items-center gap-1 overflow-x-auto flex-1 h-full py-1">
             {openTabs.map((tabPath) => {
               const isActive = tabPath === activePath;
@@ -357,9 +357,9 @@ export const App: React.FC = () => {
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
           {/* Main View Area */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
             {viewMode === 'editor' && (
               activePath ? (
                 activePath.endsWith('.canvas') ? (

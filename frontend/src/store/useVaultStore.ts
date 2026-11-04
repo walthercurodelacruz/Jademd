@@ -114,11 +114,20 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   openNote: async (path: string) => {
-    if (!path.endsWith('.md')) return;
     try {
-      const content = await api.readNote(path);
-      const title = path.replace(/\.md$/, '').split('/').pop() || path;
-      const backlinks = await api.getBacklinks(title).catch(() => []);
+      const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(path);
+      const isPdf = /\.pdf$/i.test(path);
+      let content = '';
+
+      if (!isImg && !isPdf) {
+        content = await api.readNote(path);
+      }
+
+      const title = path.replace(/\.(md|canvas|excalidraw)$/i, '').split('/').pop() || path;
+      const backlinks =
+        !isImg && !isPdf && path.endsWith('.md')
+          ? await api.getBacklinks(title).catch(() => [])
+          : [];
 
       set((state) => ({
         activePath: path,

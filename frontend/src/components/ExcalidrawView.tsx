@@ -260,9 +260,9 @@ ${compressed}
   }
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden bg-obsidian-bg relative">
+    <div className="flex-1 h-full w-full flex flex-col overflow-hidden bg-obsidian-bg relative isolate min-h-0">
       {/* Top Floating Control Bar */}
-      <div className="h-9 px-3 bg-obsidian-sidebar/95 border-b border-obsidian-border/80 flex items-center justify-between z-10 flex-shrink-0 text-xs backdrop-blur-sm">
+      <div className="h-9 px-3 bg-obsidian-sidebar border-b border-obsidian-border flex items-center justify-between z-20 flex-shrink-0 text-xs select-none">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-jade-400 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-jade-400 animate-pulse" />
@@ -328,14 +328,14 @@ ${compressed}
         </div>
       </div>
 
-      {/* Main Canvas Body */}
-      <div className="flex-1 w-full h-full relative overflow-hidden bg-obsidian-bg">
+      {/* Main Canvas Body strictly isolated */}
+      <div className="flex-1 w-full relative overflow-hidden bg-obsidian-bg min-h-0 excalidraw-container-wrapper">
         {showRawMarkdown ? (
           <div className="w-full h-full p-4 overflow-auto bg-obsidian-bg font-mono text-xs text-obsidian-text selection:bg-jade-500/30">
             <pre className="whitespace-pre-wrap leading-relaxed">{activeContent}</pre>
           </div>
         ) : (
-          <div className="w-full h-full">
+          <div className="w-full h-full absolute inset-0">
             <Excalidraw
               excalidrawAPI={(api) => {
                 excalidrawAPIRef.current = api;
