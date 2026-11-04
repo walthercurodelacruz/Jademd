@@ -153,7 +153,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(state);
 
     if frontend_dist.exists() {
-        app = app.fallback_service(ServeDir::new(frontend_dist));
+        let index_file = frontend_dist.join("index.html");
+        let serve_dir = ServeDir::new(&frontend_dist)
+            .fallback(tower_http::services::ServeFile::new(index_file));
+        app = app.fallback_service(serve_dir);
     } else {
         app = app.fallback(get(|| async {
             Html(r#"<!DOCTYPE html>
