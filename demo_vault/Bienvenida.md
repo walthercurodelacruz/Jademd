@@ -8,6 +8,11 @@ tags: [jademd, inicio]
 - **Backend:** Rust (Tokio, Axum, Apache OpenDAL, Petgraph)
 - **Frontend:** React 19, TypeScript, Tailwind CSS y CodeMirror 6
 
+## Arquitectura del Sistema
+A continuación se muestra el diagrama visual de la arquitectura (sintaxis de transclusión de Obsidian `![[imagen]]`):
+
+![[diagrama_jademd.svg|650]]
+
 ## Notas Vinculadas
 Puedes explorar las siguientes notas conectadas:
 - [[Arquitectura]]: Detalles sobre el funcionamiento interno.

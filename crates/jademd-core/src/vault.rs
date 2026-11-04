@@ -90,6 +90,34 @@ impl Vault {
         Ok(content)
     }
 
+    pub async fn read_bytes(&self, rel_path: &str) -> Result<Vec<u8>> {
+        let clean = rel_path.trim_start_matches('/');
+        if self.storage.exists(clean).await.unwrap_or(false) {
+            return self.storage.read_bytes(clean).await;
+        }
+
+        if self.storage.storage_type() == &StorageType::Local {
+            let root = PathBuf::from(self.storage.root());
+            let target_filename = Path::new(clean)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(clean);
+
+            for entry in WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
+                if entry.file_type().is_file() {
+                    if entry.file_name().to_string_lossy().eq_ignore_ascii_case(target_filename) {
+                        if let Ok(rel) = entry.path().strip_prefix(&root) {
+                            let rel_str = rel.to_string_lossy().to_string();
+                            return self.storage.read_bytes(&rel_str).await;
+                        }
+                    }
+                }
+            }
+        }
+
+        self.storage.read_bytes(clean).await
+    }
+
     pub async fn write_note(&self, rel_path: &str, content: &str) -> Result<NoteMetadata> {
         self.storage.write(rel_path, content).await?;
         
@@ -131,7 +159,22 @@ impl Vault {
 
             for entry in entries {
                 let path = entry.path().to_string();
-                if path.ends_with(".md") || path.ends_with(".canvas") || path.ends_with('/') {
+                let lower = path.to_lowercase();
+                let is_supported = lower.ends_with(".md")
+                    || lower.ends_with(".canvas")
+                    || lower.ends_with(".png")
+                    || lower.ends_with(".jpg")
+                    || lower.ends_with(".jpeg")
+                    || lower.ends_with(".gif")
+                    || lower.ends_with(".svg")
+                    || lower.ends_with(".webp")
+                    || lower.ends_with(".avif")
+                    || lower.ends_with(".bmp")
+                    || lower.ends_with(".ico")
+                    || lower.ends_with(".pdf")
+                    || lower.ends_with('/');
+
+                if is_supported {
                     let is_dir = path.ends_with('/');
                     let clean_path = path.trim_end_matches('/').to_string();
                     let name = Path::new(&clean_path)
@@ -259,8 +302,8 @@ fn build_local_tree(dir: &Path, root: &Path) -> FileNode {
             if path.is_dir() {
                 children.push(build_local_tree(&path, root));
             } else {
-                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-                if ext == "md" || ext == "canvas" {
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+                if ext == "md" || ext == "canvas" || matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "avif" | "bmp" | "ico" | "pdf") {
                     let file_rel = path.strip_prefix(root)
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_default();

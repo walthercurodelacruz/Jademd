@@ -94,6 +94,12 @@ impl StorageManager {
         Ok(content)
     }
 
+    pub async fn read_bytes(&self, path: &str) -> Result<Vec<u8>> {
+        let clean_path = path.trim_start_matches('/');
+        let buffer = self.op.read(clean_path).await?;
+        Ok(buffer.to_vec())
+    }
+
     pub async fn write(&self, path: &str, content: &str) -> Result<()> {
         let clean_path = path.trim_start_matches('/');
         self.op.write(clean_path, content.as_bytes().to_vec()).await?;

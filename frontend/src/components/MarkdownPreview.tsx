@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { marked } from 'marked';
 import { useVaultStore } from '../store/useVaultStore';
 import { FileNode } from '../types';
-import { Tag, FileText, ChevronDown, ChevronRight, ExternalLink, Eye, Edit3, Columns } from 'lucide-react';
+import { Tag, FileText, ChevronDown, ChevronRight, ExternalLink, Eye, Edit3, Columns, X, ZoomIn } from 'lucide-react';
 
 interface Props {
   content: string;
@@ -12,6 +12,7 @@ interface Props {
 export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
   const { openNote, tree, setSearchOpen, performSearch, noteMode, setNoteMode } = useVaultStore();
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // Helper: Find note path in vault tree given a title/filename
   const findNotePath = (title: string, node: FileNode | null): string | null => {
@@ -51,7 +52,6 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
             const key = line.slice(0, colonIdx).trim();
             const val = line.slice(colonIdx + 1).trim();
             if (val.startsWith('[') && val.endsWith(']')) {
-              // Array [a, b, c]
               meta[key] = val
                 .slice(1, -1)
                 .split(',')
@@ -69,10 +69,43 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
     return { frontmatter: null, markdownBody: content };
   }, [content]);
 
-  // Transform Markdown with Wikilinks, Tags and Marked
+  // Transform Markdown with Obsidian Wikilink Images, Wikilinks, Tags and Marked
   const htmlContent = useMemo(() => {
-    // 1. Process Wikilinks: [[Target|Alias]] or [[Target]]
+    // 1. Process Obsidian Wikilink Images: ![[image.png|300]] or ![[image.png]]
     let processed = markdownBody.replace(
+      /!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_, target, opt) => {
+        const cleanTarget = target.trim();
+        const options = (opt || '').trim();
+
+        let widthStyle = '';
+        let heightStyle = '';
+        let caption = '';
+
+        if (/^\d+$/.test(options)) {
+          widthStyle = `max-width: ${options}px; width: 100%;`;
+        } else if (/^(\d+)x(\d+)$/.test(options)) {
+          const match = options.match(/^(\d+)x(\d+)$/);
+          if (match) {
+            widthStyle = `width: ${match[1]}px;`;
+            heightStyle = `height: ${match[2]}px; object-fit: contain;`;
+          }
+        } else if (options) {
+          caption = options;
+        }
+
+        const isExternal = cleanTarget.startsWith('http://') || cleanTarget.startsWith('https://');
+        const assetUrl = isExternal ? cleanTarget : `/api/asset?path=${encodeURIComponent(cleanTarget)}`;
+
+        return `<figure class="my-5 flex flex-col items-center">
+          <img src="${assetUrl}" alt="${caption || cleanTarget}" data-fullsrc="${assetUrl}" class="obsidian-image rounded-xl shadow-lg border border-obsidian-border/70 hover:shadow-2xl hover:border-jade-500/50 transition cursor-zoom-in" style="${widthStyle} ${heightStyle}" loading="lazy" />
+          ${caption ? `<figcaption class="text-xs text-obsidian-muted mt-2 font-sans italic">${caption}</figcaption>` : ''}
+        </figure>`;
+      }
+    );
+
+    // 2. Process Wikilinks: [[Target|Alias]] or [[Target]]
+    processed = processed.replace(
       /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
       (_, target, alias) => {
         const label = (alias || target).trim();
@@ -81,16 +114,48 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
       }
     );
 
-    // 2. Process Tags: #tag (word boundaries, not followed by space or heading)
+    // 3. Process Tags: #tag (word boundaries, not followed by space or heading)
     processed = processed.replace(
       /(^|\s)#([a-zA-Z0-9_\u00C0-\u017F-]+)(?=[^a-zA-Z0-9_\u00C0-\u017F-]|$)/g,
       '$1<span class="tag-pill" data-tag="$2">#$2</span>'
     );
 
-    // 3. Configure Marked options
+    // 4. Configure Custom Marked Renderer for Standard Markdown Images ![alt](url)
+    const renderer = new marked.Renderer();
+    renderer.image = ({ href, title, text }) => {
+      const src = href || '';
+      const isExternal = src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:');
+      const assetUrl = isExternal ? src : `/api/asset?path=${encodeURIComponent(src.replace(/^\.\//, ''))}`;
+
+      let widthStyle = '';
+      let heightStyle = '';
+      let cleanAlt = text || '';
+
+      if (cleanAlt.includes('|')) {
+        const parts = cleanAlt.split('|');
+        cleanAlt = parts[0].trim();
+        const opt = parts[1].trim();
+        if (/^\d+$/.test(opt)) {
+          widthStyle = `max-width: ${opt}px; width: 100%;`;
+        } else if (/^(\d+)x(\d+)$/.test(opt)) {
+          const match = opt.match(/^(\d+)x(\d+)$/);
+          if (match) {
+            widthStyle = `width: ${match[1]}px;`;
+            heightStyle = `height: ${match[2]}px; object-fit: contain;`;
+          }
+        }
+      }
+
+      return `<figure class="my-5 flex flex-col items-center">
+        <img src="${assetUrl}" alt="${cleanAlt}" title="${title || ''}" data-fullsrc="${assetUrl}" class="obsidian-image rounded-xl shadow-lg border border-obsidian-border/70 hover:shadow-2xl hover:border-jade-500/50 transition cursor-zoom-in" style="${widthStyle} ${heightStyle}" loading="lazy" />
+        ${cleanAlt ? `<figcaption class="text-xs text-obsidian-muted mt-2 font-sans italic">${cleanAlt}</figcaption>` : ''}
+      </figure>`;
+    };
+
     marked.setOptions({
       gfm: true,
       breaks: true,
+      renderer,
     });
 
     try {
@@ -101,11 +166,20 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
     }
   }, [markdownBody]);
 
-  // Click delegation for Wikilinks, Tags and Links
+  // Click delegation for Images (Lightbox), Wikilinks, Tags and External Links
   const handleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
 
-    // 1. Wikilink click
+    // 1. Image Lightbox Zoom
+    const imgEl = target.closest('img.obsidian-image') as HTMLImageElement | null;
+    if (imgEl) {
+      e.preventDefault();
+      const fullSrc = imgEl.getAttribute('data-fullsrc') || imgEl.src;
+      setLightboxSrc(fullSrc);
+      return;
+    }
+
+    // 2. Wikilink click
     const wikilinkEl = target.closest('.wikilink') as HTMLElement | null;
     if (wikilinkEl) {
       e.preventDefault();
@@ -117,7 +191,7 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
       return;
     }
 
-    // 2. Tag click
+    // 3. Tag click
     const tagEl = target.closest('.tag-pill') as HTMLElement | null;
     if (tagEl) {
       e.preventDefault();
@@ -129,7 +203,7 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
       return;
     }
 
-    // 3. Regular external links
+    // 4. Regular external links
     const linkEl = target.closest('a') as HTMLAnchorElement | null;
     if (linkEl && linkEl.href && !linkEl.classList.contains('wikilink')) {
       if (linkEl.href.startsWith('http://') || linkEl.href.startsWith('https://')) {
@@ -140,7 +214,7 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-obsidian-bg overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-obsidian-bg overflow-hidden relative">
       {/* Top Reading View Toolbar */}
       <div className="h-9 px-4 border-b border-obsidian-border bg-obsidian-sidebar/80 backdrop-blur-sm flex items-center justify-between select-none flex-shrink-0 z-10">
         <div className="flex items-center gap-2 text-xs text-obsidian-muted">
@@ -181,64 +255,87 @@ export const MarkdownPreview: React.FC<Props> = ({ content, path }) => {
         className="flex-1 w-full overflow-y-auto p-8 md:px-16 lg:px-24 select-text"
       >
         <div className="max-w-4xl mx-auto">
-        {/* Properties / Frontmatter Card (Obsidian Style) */}
-        {frontmatter && Object.keys(frontmatter).length > 0 && (
-          <div className="mb-6 rounded-lg border border-obsidian-border bg-obsidian-card/60 overflow-hidden text-xs">
-            <button
-              onClick={() => setPropertiesCollapsed(!propertiesCollapsed)}
-              className="w-full flex items-center justify-between px-3.5 py-2 bg-obsidian-sidebar/60 text-obsidian-muted hover:text-white transition font-medium"
-            >
-              <div className="flex items-center gap-1.5">
-                <FileText size={14} className="text-jade-400" />
-                <span>Propiedades</span>
-                <span className="text-[10px] text-obsidian-muted font-mono ml-1">
-                  ({Object.keys(frontmatter).length})
-                </span>
-              </div>
-              {propertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            </button>
+          {/* Properties / Frontmatter Card (Obsidian Style) */}
+          {frontmatter && Object.keys(frontmatter).length > 0 && (
+            <div className="mb-6 rounded-lg border border-obsidian-border bg-obsidian-card/60 overflow-hidden text-xs">
+              <button
+                onClick={() => setPropertiesCollapsed(!propertiesCollapsed)}
+                className="w-full flex items-center justify-between px-3.5 py-2 bg-obsidian-sidebar/60 text-obsidian-muted hover:text-white transition font-medium"
+              >
+                <div className="flex items-center gap-1.5">
+                  <FileText size={14} className="text-jade-400" />
+                  <span>Propiedades</span>
+                  <span className="text-[10px] text-obsidian-muted font-mono ml-1">
+                    ({Object.keys(frontmatter).length})
+                  </span>
+                </div>
+                {propertiesCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              </button>
 
-            {!propertiesCollapsed && (
-              <div className="p-3 divide-y divide-obsidian-border/50">
-                {Object.entries(frontmatter).map(([k, v]) => (
-                  <div key={k} className="py-1.5 first:pt-0 last:pb-0 flex items-start gap-4">
-                    <span className="w-28 text-obsidian-muted font-mono truncate">{k}:</span>
-                    <div className="flex-1 text-obsidian-text">
-                      {Array.isArray(v) ? (
-                        <div className="flex flex-wrap gap-1">
-                          {v.map((item, idx) => (
-                            <span
-                              key={idx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                performSearch(item);
-                                setSearchOpen(true);
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-jade-950/70 border border-jade-800/50 text-jade-300 text-[11px] font-medium cursor-pointer hover:bg-jade-900/80 transition"
-                            >
-                              <Tag size={10} />
-                              <span>{item}</span>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="font-sans font-medium">{String(v)}</span>
-                      )}
+              {!propertiesCollapsed && (
+                <div className="p-3 divide-y divide-obsidian-border/50">
+                  {Object.entries(frontmatter).map(([k, v]) => (
+                    <div key={k} className="py-1.5 first:pt-0 last:pb-0 flex items-start gap-4">
+                      <span className="w-28 text-obsidian-muted font-mono truncate">{k}:</span>
+                      <div className="flex-1 text-obsidian-text">
+                        {Array.isArray(v) ? (
+                          <div className="flex flex-wrap gap-1">
+                            {v.map((item, idx) => (
+                              <span
+                                key={idx}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  performSearch(item);
+                                  setSearchOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-jade-950/70 border border-jade-800/50 text-jade-300 text-[11px] font-medium cursor-pointer hover:bg-jade-900/80 transition"
+                              >
+                                <Tag size={10} />
+                                <span>{item}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="font-sans font-medium">{String(v)}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Compiled Markdown Body */}
-        <div
-          className="markdown-body select-text"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
+          {/* Compiled Markdown Body */}
+          <div
+            className="markdown-body select-text"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
+          />
+        </div>
       </div>
-    </div>
+
+      {/* Obsidian Style Image Lightbox Modal */}
+      {lightboxSrc && (
+        <div
+          onClick={() => setLightboxSrc(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-200 cursor-zoom-out"
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center">
+            <button
+              onClick={() => setLightboxSrc(null)}
+              className="absolute -top-10 right-0 p-1.5 text-white/70 hover:text-white bg-black/40 rounded-full"
+              title="Cerrar"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={lightboxSrc}
+              alt="Vista ampliada"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-white/10"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

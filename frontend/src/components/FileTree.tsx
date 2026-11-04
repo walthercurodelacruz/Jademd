@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileNode } from '../types';
 import { useVaultStore } from '../store/useVaultStore';
-import { ChevronDown, ChevronRight, FileText, Folder, FolderPlus, FilePlus, Trash2, LayoutGrid } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Folder, FolderPlus, FilePlus, Trash2, LayoutGrid, Image as ImageIcon } from 'lucide-react';
 
 interface Props {
   node: FileNode;
@@ -68,12 +68,14 @@ export const FileTree: React.FC<Props> = ({ node }) => {
                 <span className="w-3.5" />
                 {item.name.endsWith('.canvas') ? (
                   <LayoutGrid size={14} className={isSelected ? 'text-jade-400' : 'text-emerald-400/80'} />
+                ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(item.name) ? (
+                  <ImageIcon size={14} className={isSelected ? 'text-sky-400' : 'text-sky-400/80'} />
                 ) : (
                   <FileText size={14} className={isSelected ? 'text-jade-400' : 'text-obsidian-muted/70'} />
                 )}
               </>
             )}
-            <span className="truncate">{item.name.replace(/\.(md|canvas)$/, '')}</span>
+            <span className="truncate">{item.name.replace(/\.md$/, '')}</span>
           </div>
 
           {/* Quick Actions Hover */}

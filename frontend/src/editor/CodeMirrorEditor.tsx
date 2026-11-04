@@ -11,6 +11,10 @@ import {
   rectangularSelection,
   crosshairCursor,
   highlightActiveLine,
+  WidgetType,
+  MatchDecorator,
+  Decoration,
+  ViewPlugin,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
@@ -57,6 +61,146 @@ const obsidianHighlightStyle = HighlightStyle.define([
   { tag: tags.monospace, fontFamily: 'ui-monospace, monospace', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px' },
   { tag: tags.strikethrough, textDecoration: 'line-through', color: '#71717a' },
 ]);
+
+// Obsidian Live Preview Inline Image Widget
+class InlineImageWidget extends WidgetType {
+  constructor(
+    readonly src: string,
+    readonly alt: string,
+    readonly width?: string,
+    readonly height?: string
+  ) {
+    super();
+  }
+
+  eq(other: InlineImageWidget) {
+    return (
+      this.src === other.src &&
+      this.alt === other.alt &&
+      this.width === other.width &&
+      this.height === other.height
+    );
+  }
+
+  toDOM() {
+    const wrap = document.createElement('div');
+    wrap.className = 'cm-inline-image-wrap my-3 flex flex-col items-center select-none';
+
+    const isExternal =
+      this.src.startsWith('http://') ||
+      this.src.startsWith('https://') ||
+      this.src.startsWith('data:');
+    const assetUrl = isExternal
+      ? this.src
+      : `/api/asset?path=${encodeURIComponent(this.src.replace(/^\.\//, ''))}`;
+
+    const img = document.createElement('img');
+    img.src = assetUrl;
+    img.alt = this.alt;
+    img.className =
+      'rounded-xl border border-obsidian-border/80 shadow-lg max-w-full h-auto max-h-[420px] object-contain hover:shadow-2xl transition cursor-pointer';
+    if (this.width) img.style.maxWidth = `${this.width}px`;
+    if (this.height) img.style.maxHeight = `${this.height}px`;
+
+    img.onerror = () => {
+      wrap.innerHTML = `<span class="text-2xs text-amber-400 bg-amber-950/40 border border-amber-900/50 px-2.5 py-1 rounded-md inline-flex items-center gap-1 font-mono">🖼️ Imagen no encontrada: ${this.src}</span>`;
+    };
+
+    wrap.appendChild(img);
+    return wrap;
+  }
+}
+
+const wikilinkImageDecorator = new MatchDecorator({
+  regexp: /!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+  decoration: (match) => {
+    const src = match[1].trim();
+    const opt = (match[2] || '').trim();
+    let width: string | undefined;
+    let height: string | undefined;
+    let alt = src;
+
+    if (/^\d+$/.test(opt)) {
+      width = opt;
+    } else if (/^(\d+)x(\d+)$/.test(opt)) {
+      const m = opt.match(/^(\d+)x(\d+)$/);
+      if (m) {
+        width = m[1];
+        height = m[2];
+      }
+    } else if (opt) {
+      alt = opt;
+    }
+
+    return Decoration.widget({
+      widget: new InlineImageWidget(src, alt, width, height),
+      side: 1,
+      block: true,
+    });
+  },
+});
+
+const standardImageDecorator = new MatchDecorator({
+  regexp: /!\[([^\]]*)\]\(([^)]+)\)/g,
+  decoration: (match) => {
+    const rawAlt = (match[1] || '').trim();
+    const src = (match[2] || '').trim();
+    let width: string | undefined;
+    let height: string | undefined;
+    let alt = rawAlt;
+
+    if (rawAlt.includes('|')) {
+      const parts = rawAlt.split('|');
+      alt = parts[0].trim();
+      const opt = parts[1].trim();
+      if (/^\d+$/.test(opt)) {
+        width = opt;
+      } else if (/^(\d+)x(\d+)$/.test(opt)) {
+        const m = opt.match(/^(\d+)x(\d+)$/);
+        if (m) {
+          width = m[1];
+          height = m[2];
+        }
+      }
+    }
+
+    return Decoration.widget({
+      widget: new InlineImageWidget(src, alt, width, height),
+      side: 1,
+      block: true,
+    });
+  },
+});
+
+const wikilinkImagePlugin = ViewPlugin.fromClass(
+  class {
+    decorations;
+    constructor(view: EditorView) {
+      this.decorations = wikilinkImageDecorator.createDeco(view);
+    }
+    update(u: any) {
+      if (u.docChanged || u.viewportChanged) {
+        this.decorations = wikilinkImageDecorator.createDeco(u.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
+
+const standardImagePlugin = ViewPlugin.fromClass(
+  class {
+    decorations;
+    constructor(view: EditorView) {
+      this.decorations = standardImageDecorator.createDeco(view);
+    }
+    update(u: any) {
+      if (u.docChanged || u.viewportChanged) {
+        this.decorations = standardImageDecorator.createDeco(u.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
 
 export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -174,6 +318,8 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
       highlightActiveLine(),
       markdown(),
       syntaxHighlighting(obsidianHighlightStyle),
+      wikilinkImagePlugin,
+      standardImagePlugin,
       oneDark,
       customTheme,
       autocompletion({ override: [wikilinkCompletion] }),

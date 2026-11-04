@@ -142,7 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/folder/create", post(create_folder))
         .route("/graph", get(get_graph))
         .route("/backlinks", get(get_backlinks))
-        .route("/search", get(search_notes));
+        .route("/search", get(search_notes))
+        .route("/asset", get(get_asset));
 
     // Try serving dist if built
     let frontend_dist = std::path::PathBuf::from("frontend/dist");
@@ -425,5 +426,44 @@ async fn search_notes(
             StatusCode::NOT_FOUND,
             Json(ApiResponse::err("No hay ninguna bóveda abierta")),
         ),
+    }
+}
+
+async fn get_asset(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<NoteQuery>,
+) -> impl IntoResponse {
+    let lock = state.vault.read().await;
+    let vault = match &*lock {
+        Some(v) => v,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                [(header::CONTENT_TYPE, "text/plain")],
+                "No hay ninguna bóveda abierta".as_bytes().to_vec(),
+            )
+                .into_response()
+        }
+    };
+
+    match vault.read_bytes(&query.path).await {
+        Ok(bytes) => {
+            let mime = mime_guess::from_path(&query.path).first_or_octet_stream();
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, mime.as_ref().to_string()),
+                    (header::CACHE_CONTROL, "public, max-age=3600".to_string()),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::NOT_FOUND,
+            [(header::CONTENT_TYPE, "text/plain".to_string())],
+            format!("Asset not found: {}", e).into_bytes(),
+        )
+            .into_response(),
     }
 }

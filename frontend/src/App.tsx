@@ -3,6 +3,7 @@ import { useVaultStore } from './store/useVaultStore';
 import { FileTree } from './components/FileTree';
 import { CodeMirrorEditor } from './editor/CodeMirrorEditor';
 import { MarkdownPreview } from './components/MarkdownPreview';
+import { ImageViewer } from './components/ImageViewer';
 import { GraphView } from './components/GraphView';
 import { CanvasView } from './components/CanvasView';
 import { BacklinksPanel } from './components/BacklinksPanel';
@@ -22,7 +23,8 @@ import {
   Sparkles,
   X,
   FileText,
-  LayoutGrid
+  LayoutGrid,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -229,6 +231,8 @@ export const App: React.FC = () => {
         <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center px-2 gap-1 overflow-x-auto select-none flex-shrink-0">
           {openTabs.map((tabPath) => {
             const isActive = tabPath === activePath;
+            const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(tabPath);
+            const isCanvas = tabPath.endsWith('.canvas');
             const tabTitle = tabPath.replace(/\.md$/, '').split('/').pop() || tabPath;
 
             return (
@@ -241,7 +245,13 @@ export const App: React.FC = () => {
                     : 'text-obsidian-muted hover:text-obsidian-text hover:bg-obsidian-hover border-transparent'
                 }`}
               >
-                <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                {isImg ? (
+                  <ImageIcon size={13} className={isActive ? 'text-sky-400' : 'text-obsidian-muted'} />
+                ) : isCanvas ? (
+                  <LayoutGrid size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                ) : (
+                  <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                )}
                 <span className="truncate max-w-[150px]">{tabTitle}</span>
                 <button
                   onClick={(e) => {
@@ -271,6 +281,8 @@ export const App: React.FC = () => {
               activePath ? (
                 activePath.endsWith('.canvas') ? (
                   <CanvasView />
+                ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
+                  <ImageViewer path={activePath} />
                 ) : noteMode === 'reading' ? (
                   <MarkdownPreview content={activeContent} path={activePath} />
                 ) : noteMode === 'split-preview' ? (
@@ -326,6 +338,8 @@ export const App: React.FC = () => {
                   {activePath ? (
                     activePath.endsWith('.canvas') ? (
                       <CanvasView />
+                    ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
+                      <ImageViewer path={activePath} />
                     ) : noteMode === 'reading' ? (
                       <MarkdownPreview content={activeContent} path={activePath} />
                     ) : (
