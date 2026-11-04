@@ -24,7 +24,10 @@ import {
   X,
   FileText,
   LayoutGrid,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Edit3,
+  BookOpen,
+  Columns
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -228,47 +231,91 @@ export const App: React.FC = () => {
       {/* Main Workspace Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-obsidian-bg">
         {/* Tabs Bar */}
-        <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center px-2 gap-1 overflow-x-auto select-none flex-shrink-0">
-          {openTabs.map((tabPath) => {
-            const isActive = tabPath === activePath;
-            const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(tabPath);
-            const isCanvas = tabPath.endsWith('.canvas');
-            const tabTitle = tabPath.replace(/\.md$/, '').split('/').pop() || tabPath;
+        <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center justify-between px-2 gap-1 select-none flex-shrink-0">
+          <div className="flex items-center gap-1 overflow-x-auto flex-1 h-full py-1">
+            {openTabs.map((tabPath) => {
+              const isActive = tabPath === activePath;
+              const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(tabPath);
+              const isCanvas = tabPath.endsWith('.canvas');
+              const tabTitle = tabPath.replace(/\.md$/, '').split('/').pop() || tabPath;
 
-            return (
-              <div
-                key={tabPath}
-                onClick={() => openNote(tabPath)}
-                className={`group flex items-center gap-2 px-3 py-1.5 rounded-t-md text-xs cursor-pointer transition border-b-2 ${
-                  isActive
-                    ? 'bg-obsidian-bg text-obsidian-text border-jade-500 font-medium'
-                    : 'text-obsidian-muted hover:text-obsidian-text hover:bg-obsidian-hover border-transparent'
+              return (
+                <div
+                  key={tabPath}
+                  onClick={() => openNote(tabPath)}
+                  className={`group flex items-center gap-2 px-3 py-1 rounded-t-md text-xs cursor-pointer transition border-b-2 flex-shrink-0 ${
+                    isActive
+                      ? 'bg-obsidian-bg text-obsidian-text border-jade-500 font-medium'
+                      : 'text-obsidian-muted hover:text-obsidian-text hover:bg-obsidian-hover border-transparent'
+                  }`}
+                >
+                  {isImg ? (
+                    <ImageIcon size={13} className={isActive ? 'text-sky-400' : 'text-obsidian-muted'} />
+                  ) : isCanvas ? (
+                    <LayoutGrid size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                  ) : (
+                    <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
+                  )}
+                  <span className="truncate max-w-[150px]">{tabTitle}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeTab(tabPath);
+                    }}
+                    className="p-0.5 rounded-full hover:bg-obsidian-border text-obsidian-muted hover:text-white"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })}
+
+            {openTabs.length === 0 && (
+              <div className="text-2xs text-obsidian-muted px-3 italic">
+                Ninguna nota abierta. Selecciona una en el explorador o pulsa Ctrl+O para buscar.
+              </div>
+            )}
+          </div>
+
+          {/* Mode Switcher for Active Markdown Note */}
+          {activePath && !activePath.endsWith('.canvas') && !/\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) && (
+            <div className="flex items-center gap-0.5 bg-obsidian-bg/90 border border-obsidian-border/70 rounded-lg p-0.5 ml-2 flex-shrink-0 shadow-sm">
+              <button
+                onClick={() => setNoteMode('live')}
+                title="Modo Edición / Live Preview"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
+                  noteMode === 'live'
+                    ? 'bg-jade-600 text-white shadow-xs'
+                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
                 }`}
               >
-                {isImg ? (
-                  <ImageIcon size={13} className={isActive ? 'text-sky-400' : 'text-obsidian-muted'} />
-                ) : isCanvas ? (
-                  <LayoutGrid size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
-                ) : (
-                  <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
-                )}
-                <span className="truncate max-w-[150px]">{tabTitle}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    closeTab(tabPath);
-                  }}
-                  className="p-0.5 rounded-full hover:bg-obsidian-border text-obsidian-muted hover:text-white"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            );
-          })}
-
-          {openTabs.length === 0 && (
-            <div className="text-2xs text-obsidian-muted px-3 italic">
-              Ninguna nota abierta. Selecciona una en el explorador o pulsa Ctrl+O para buscar.
+                <Edit3 size={12} />
+                <span>Editar</span>
+              </button>
+              <button
+                onClick={() => setNoteMode('reading')}
+                title="Modo Lectura (Renderizado Completo)"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
+                  noteMode === 'reading'
+                    ? 'bg-jade-600 text-white shadow-xs'
+                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+                }`}
+              >
+                <BookOpen size={12} />
+                <span>Lectura</span>
+              </button>
+              <button
+                onClick={() => setNoteMode('split-preview')}
+                title="Modo Doble Panel (Editor + Lectura)"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
+                  noteMode === 'split-preview'
+                    ? 'bg-jade-600 text-white shadow-xs'
+                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+                }`}
+              >
+                <Columns size={12} />
+                <span>Doble</span>
+              </button>
             </div>
           )}
         </div>
