@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jademd
+GenericName=Gestor de Conocimiento Markdown
+Comment=Alternativa moderna, modular y conectable a la nube para Obsidian
+Exec=/home/linux/Escritorio/Github_Repo/Jademd/run.sh
+Icon=text-editor
+Terminal=false
+Categories=Office;Utility;TextEditor;
+StartupNotify=true
