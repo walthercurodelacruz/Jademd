@@ -24,3 +24,203 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
+
+/* Obsidian-style Markdown Reading View Styles */
+.markdown-body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.75;
+  color: #e4e4e7;
+  font-size: 15px;
+}
+
+.markdown-body h1 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #4ade80;
+  margin-top: 1.75rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.4rem;
+  letter-spacing: -0.02em;
+}
+
+.markdown-body h2 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.3rem;
+  letter-spacing: -0.01em;
+}
+
+.markdown-body h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #a78bfa;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #facc15;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.markdown-body h5, .markdown-body h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f472b6;
+  margin-top: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.markdown-body p {
+  margin-bottom: 1.1rem;
+}
+
+.markdown-body strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.markdown-body em {
+  color: #f4f4f5;
+  font-style: italic;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.6rem;
+  margin-bottom: 1.1rem;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.6rem;
+  margin-bottom: 1.1rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.3rem;
+}
+
+.markdown-body blockquote {
+  border-left: 4px solid #10b981;
+  background: rgba(16, 185, 129, 0.05);
+  padding: 0.75rem 1.25rem;
+  margin: 1.25rem 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.markdown-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body code:not(pre code) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f472b6;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.markdown-body pre {
+  background: #141416;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+  font-size: 0.9em;
+}
+
+.markdown-body pre code {
+  background: transparent;
+  color: #e4e4e7;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+}
+
+.markdown-body th, .markdown-body td {
+  border: 1px solid #27272a;
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: #1f1f23;
+  font-weight: 600;
+  color: #f4f4f5;
+}
+
+.markdown-body tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid #27272a;
+  margin: 1.75rem 0;
+}
+
+/* Wikilinks & Tags in Markdown Preview */
+.markdown-body .wikilink {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.markdown-body .wikilink:hover {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  text-decoration: underline;
+}
+
+.markdown-body .tag-pill {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.12);
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0 0.2rem;
+  display: inline-block;
+  transition: all 0.15s ease;
+}
+
+.markdown-body .tag-pill:hover {
+  background: rgba(167, 139, 250, 0.25);
+  color: #c4b5fd;
+}
+
+.markdown-body input[type="checkbox"] {
+  accent-color: #10b981;
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useVaultStore } from './store/useVaultStore';
 import { FileTree } from './components/FileTree';
 import { CodeMirrorEditor } from './editor/CodeMirrorEditor';
+import { MarkdownPreview } from './components/MarkdownPreview';
 import { GraphView } from './components/GraphView';
 import { CanvasView } from './components/CanvasView';
 import { BacklinksPanel } from './components/BacklinksPanel';
@@ -38,6 +39,8 @@ export const App: React.FC = () => {
     createNewFolder,
     viewMode,
     setViewMode,
+    noteMode,
+    setNoteMode,
     isSaving,
     openLocalVault,
     setSearchOpen,
@@ -268,6 +271,17 @@ export const App: React.FC = () => {
               activePath ? (
                 activePath.endsWith('.canvas') ? (
                   <CanvasView />
+                ) : noteMode === 'reading' ? (
+                  <MarkdownPreview content={activeContent} path={activePath} />
+                ) : noteMode === 'split-preview' ? (
+                  <div className="flex-1 flex h-full overflow-hidden">
+                    <div className="w-1/2 h-full border-r border-obsidian-border">
+                      <CodeMirrorEditor initialContent={activeContent} path={activePath} />
+                    </div>
+                    <div className="w-1/2 h-full">
+                      <MarkdownPreview content={activeContent} path={activePath} />
+                    </div>
+                  </div>
                 ) : (
                   <CodeMirrorEditor initialContent={activeContent} path={activePath} />
                 )
@@ -312,6 +326,8 @@ export const App: React.FC = () => {
                   {activePath ? (
                     activePath.endsWith('.canvas') ? (
                       <CanvasView />
+                    ) : noteMode === 'reading' ? (
+                      <MarkdownPreview content={activeContent} path={activePath} />
                     ) : (
                       <CodeMirrorEditor initialContent={activeContent} path={activePath} />
                     )

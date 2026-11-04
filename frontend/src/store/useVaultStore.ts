@@ -11,6 +11,7 @@ interface VaultState {
   backlinks: string[];
   openTabs: string[];
   viewMode: 'editor' | 'graph' | 'split';
+  noteMode: 'live' | 'reading' | 'split-preview';
   graphData: GraphData | null;
   isSaving: boolean;
   isLoading: boolean;
@@ -37,6 +38,7 @@ interface VaultState {
   createNewFolder: (path: string) => Promise<void>;
   deleteItem: (path: string) => Promise<void>;
   setViewMode: (mode: 'editor' | 'graph' | 'split') => void;
+  setNoteMode: (mode: 'live' | 'reading' | 'split-preview') => void;
   loadGraph: () => Promise<void>;
   setSearchOpen: (open: boolean) => void;
   performSearch: (query: string) => Promise<void>;
@@ -51,6 +53,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   backlinks: [],
   openTabs: [],
   viewMode: 'editor',
+  noteMode: 'live',
   graphData: null,
   isSaving: false,
   isLoading: false,
@@ -197,6 +200,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   setViewMode: (mode) => set({ viewMode: mode }),
+  setNoteMode: (mode) => set({ noteMode: mode }),
 
   loadGraph: async () => {
     try {
