@@ -82,9 +82,13 @@ class InlineImageWidget extends WidgetType {
     );
   }
 
+  ignoreEvent() {
+    return true;
+  }
+
   toDOM() {
-    const wrap = document.createElement('div');
-    wrap.className = 'cm-inline-image-wrap my-3 flex flex-col items-center select-none';
+    const wrap = document.createElement('span');
+    wrap.className = 'cm-inline-image-wrap my-3 block select-none text-center';
 
     const isExternal =
       this.src.startsWith('http://') ||
@@ -98,7 +102,7 @@ class InlineImageWidget extends WidgetType {
     img.src = assetUrl;
     img.alt = this.alt;
     img.className =
-      'rounded-xl border border-obsidian-border/80 shadow-lg max-w-full h-auto max-h-[420px] object-contain hover:shadow-2xl transition cursor-pointer';
+      'rounded-xl border border-obsidian-border/80 shadow-lg max-w-full h-auto max-h-[450px] inline-block object-contain hover:shadow-2xl transition cursor-pointer';
     if (this.width) img.style.maxWidth = `${this.width}px`;
     if (this.height) img.style.maxHeight = `${this.height}px`;
 
@@ -135,7 +139,6 @@ const wikilinkImageDecorator = new MatchDecorator({
     return Decoration.widget({
       widget: new InlineImageWidget(src, alt, width, height),
       side: 1,
-      block: true,
     });
   },
 });
@@ -167,7 +170,6 @@ const standardImageDecorator = new MatchDecorator({
     return Decoration.widget({
       widget: new InlineImageWidget(src, alt, width, height),
       side: 1,
-      block: true,
     });
   },
 });
