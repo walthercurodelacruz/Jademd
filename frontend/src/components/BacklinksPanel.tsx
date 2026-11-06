@@ -9,7 +9,7 @@ export const BacklinksPanel: React.FC = () => {
 
   const findPathForTitle = (title: string, node: any): string | null => {
     if (!node) return null;
-    if (!node.is_dir && node.name.replace(/\.md$/, '') === title) {
+    if (!node.is_dir && (node.path === title || node.name.replace(/\.md$/, '') === title)) {
       return node.path;
     }
     if (node.children) {

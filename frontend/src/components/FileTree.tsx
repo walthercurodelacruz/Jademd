@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FileNode } from '../types';
 import { useVaultStore } from '../store/useVaultStore';
 import {
+  Pencil,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -19,12 +20,44 @@ interface Props {
 }
 
 export const FileTree: React.FC<Props> = ({ node }) => {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ '': true, '/': true });
-  const { activePath, openNote, createNewNote, createNewFolder, deleteItem } = useVaultStore();
+  const vaultId = useVaultStore((state) => state.vault?.id);
+  return <VaultFileTree key={vaultId || 'unopened'} node={node} vaultId={vaultId} />;
+};
 
-  const toggleExpand = (path: string, e: React.MouseEvent) => {
+const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }) => {
+  const storageKey = vaultId ? `jademd:tree-expanded:${vaultId}` : null;
+
+  const dragging = React.useRef<FileNode | null>(null);
+  const [dropPath, setDropPath] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<{ from: string; to: string } | null>(null);
+  const [moveError, setMoveError] = useState('');
+  const { moveItem, isLoading } = useVaultStore();
+  const destinationFor = (folder: FileNode) => {
+    const source = dragging.current;
+    if (!source || !folder.is_dir || isLoading) return null;
+    const folderPath = folder.path === '/' ? '' : folder.path;
+    const to = folderPath ? folderPath + '/' + source.name : source.name;
+    if (to === source.path || folderPath === source.path || folderPath.startsWith(source.path + '/')) return null;
+    return { from: source.path, to };
+  };
+  const [contextPath, setContextPath] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) || '{}' : '{}');
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+      return Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === 'boolean')) as Record<string, boolean>;
+    } catch { return {}; }
+  });
+  const { activePath, openNote, createNewNote, createNewFolder, deleteItem, setViewMode, setFileOperationPath } = useVaultStore();
+
+  const toggleExpand = (path: string, currentlyExpanded: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
+    const next = { ...expanded, [path]: !currentlyExpanded };
+    setExpanded(next);
+    if (storageKey) {
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); }
+      catch { useVaultStore.setState({ noteError: 'No se pudo guardar el estado de las carpetas para la próxima sesión.' }); }
+    }
   };
 
   const handleCreateNoteInFolder = (folderPath: string, e: React.MouseEvent) => {
@@ -60,20 +93,49 @@ export const FileTree: React.FC<Props> = ({ node }) => {
   const renderNode = (item: FileNode, level = 0) => {
     const isDir = item.is_dir;
     const isSelected = activePath === item.path;
-    const isExp = expanded[item.path] ?? (level < 2);
+    const isExp = expanded[item.path] ?? (level === 0);
     const isExcalidraw = item.name.includes('.excalidraw');
 
     return (
       <div key={item.path || item.name} className="select-none text-sm">
         <div
+          data-tree-path={item.path}
+          draggable={!!item.path && item.path !== '/' && !isLoading}
+          onDragStart={(event) => {
+            event.stopPropagation();
+            dragging.current = item;
+            setContextPath(null);
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/jademd-file', item.path);
+          }}
+          onDragEnd={() => { dragging.current = null; setDropPath(null); }}
+          onDragOver={(event) => {
+            if (!destinationFor(item)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer.dropEffect = 'move';
+            setDropPath(item.path);
+          }}
+          onDragLeave={() => setDropPath(null)}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const destination = destinationFor(item);
+            dragging.current = null;
+            setDropPath(null);
+            if (destination) { setMoveError(''); setPendingMove(destination); }
+          }}
+          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setContextPath(item.path); }}
           onClick={(e) => {
+            setContextPath(null);
             if (isDir) {
-              toggleExpand(item.path, e);
+              toggleExpand(item.path, isExp, e);
             } else {
+              setViewMode('editor');
               openNote(item.path);
             }
           }}
-          style={{ paddingLeft: `${Math.max(8, level * 14)}px` }}
+          style={{ outline: dropPath === item.path ? '2px solid #22c55e' : undefined, paddingLeft: `${Math.max(8, level * 14)}px` }}
           className={`group flex items-center justify-between py-1.5 pr-2 rounded-md cursor-pointer transition-colors ${
             isSelected
               ? 'bg-jade-950/60 text-jade-300 font-medium border-l-2 border-jade-500'
@@ -106,7 +168,7 @@ export const FileTree: React.FC<Props> = ({ node }) => {
           </div>
 
           {/* Quick Actions Hover */}
-          <div className="hidden group-hover:flex items-center gap-1 opacity-80">
+          {contextPath === item.path && <div role="menu" aria-label="Acciones del archivo" className="flex items-center gap-1 bg-obsidian-card border border-obsidian-border rounded p-1" onClick={() => setContextPath(null)}>
             {isDir && (
               <>
                 <button
@@ -132,19 +194,20 @@ export const FileTree: React.FC<Props> = ({ node }) => {
                 </button>
               </>
             )}
+            {item.path && item.path !== '/' && <button aria-label={`Renombrar o mover ${item.path}`} title="Renombrar o mover" className="p-1 hover:text-jade-300 rounded" onClick={(event) => { event.stopPropagation(); setFileOperationPath(item.path); }}><Pencil size={13} /></button>}
             {item.path && item.path !== '/' && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteItem(item.path);
                 }}
-                title="Eliminar"
+                title="Mover a la papelera"
                 className="p-1 hover:text-red-400 hover:bg-obsidian-border rounded"
               >
                 <Trash2 size={13} />
               </button>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Children */}
@@ -157,5 +220,21 @@ export const FileTree: React.FC<Props> = ({ node }) => {
     );
   };
 
-  return <div className="space-y-0.5">{renderNode(node)}</div>;
+  return <><div className="space-y-0.5" onKeyDown={(event) => { if (event.key === 'Escape') setContextPath(null); }}>{renderNode(node)}</div>
+    {pendingMove && <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-6">
+      <section role="dialog" aria-modal="true" aria-label="Confirmar movimiento" className="bg-obsidian-card border border-obsidian-border rounded-xl p-5 w-full max-w-lg">
+        <h2 className="font-semibold mb-3">Confirmar movimiento</h2>
+        <p className="break-all">Origen: {pendingMove.from}</p>
+        <p className="break-all">Destino: {pendingMove.to}</p>
+        {moveError && <p role="alert" className="text-rose-300">{moveError}</p>}
+        <div className="flex justify-end gap-3 mt-4">
+          <button disabled={isLoading} onClick={() => setPendingMove(null)}>Cancelar</button>
+          <button disabled={isLoading} className="bg-jade-700 rounded px-4 py-2" onClick={async () => {
+            try { await moveItem(pendingMove.from, pendingMove.to); setPendingMove(null); }
+            catch (error) { setMoveError(error instanceof Error ? error.message : String(error)); }
+          }}>{isLoading ? 'Moviendo…' : 'Mover'}</button>
+        </div>
+      </section>
+    </div>}
+  </>;
 };

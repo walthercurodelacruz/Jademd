@@ -225,6 +225,213 @@
   cursor: pointer;
 }
 
+/* TipTap WYSIWYG Editor Styles - Obsidian Theme */
+.tiptap-wrapper {
+  color: #e4e4e7;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.tiptap {
+  outline: none !important;
+  min-height: 450px;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  color: #71717a;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.tiptap h1 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #4ade80;
+  margin-top: 1.75rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.4rem;
+  letter-spacing: -0.02em;
+}
+
+.tiptap h2 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: #38bdf8;
+  margin-top: 1.5rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 0.3rem;
+  letter-spacing: -0.01em;
+}
+
+.tiptap h3 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #a78bfa;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.tiptap h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #facc15;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.tiptap p {
+  margin-bottom: 1.1rem;
+}
+
+.tiptap strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tiptap em {
+  color: #f4f4f5;
+  font-style: italic;
+}
+
+.tiptap s {
+  color: #71717a;
+}
+
+.tiptap code {
+  background: #27272a;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  color: #f472b6;
+}
+
+.tiptap pre {
+  background: #18181b !important;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  color: #f4f4f5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 0.85rem 1.1rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+
+.tiptap pre code {
+  background: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid #10b981;
+  padding-left: 1rem;
+  margin: 1.25rem 0;
+  color: #a1a1aa;
+  font-style: italic;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid #27272a;
+  margin: 1.75rem 0;
+}
+
+.tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.6rem;
+  margin-bottom: 1.1rem;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.6rem;
+  margin-bottom: 1.1rem;
+}
+
+.tiptap li {
+  margin-bottom: 0.35rem;
+}
+
+/* Interactive Checklists in WYSIWYG */
+.tiptap ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin-bottom: 1.1rem;
+}
+
+.tiptap ul[data-type="taskList"] li {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.6rem !important;
+  margin-bottom: 0.4rem;
+}
+
+.tiptap ul[data-type="taskList"] li > label {
+  user-select: none;
+  margin-top: 0.25rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #10b981;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.tiptap ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #71717a;
+}
+
+/* TipTap Tables */
+.tiptap table {
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tiptap table td,
+.tiptap table th {
+  border: 1px solid #3f3f46;
+  box-sizing: border-box;
+  min-width: 1em;
+  padding: 8px 12px;
+  position: relative;
+  vertical-align: top;
+}
+
+.tiptap table th {
+  background-color: #27272a;
+  font-weight: 600;
+  text-align: left;
+  color: #38bdf8;
+}
+
+.tiptap table .selectedCell:after {
+  background: rgba(16, 185, 129, 0.15);
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
 /* Strict isolation and bounds for embedded Excalidraw */
 .excalidraw-container-wrapper {
   position: relative !important;
@@ -232,7 +439,8 @@
   height: 100% !important;
   overflow: hidden !important;
   isolation: isolate !important;
-  contain: paint !important;
+  contain: strict !important;
+  transform: translate3d(0, 0, 0) !important;
 }
 
 .excalidraw-container-wrapper .excalidraw {
@@ -241,6 +449,7 @@
   width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 .excalidraw-container-wrapper .excalidraw .SVGLayer {
@@ -249,4 +458,84 @@
   height: 100% !important;
   top: 0 !important;
   left: 0 !important;
+}
+
+/* Compact typography utilities */
+.text-2xs {
+  font-size: 0.6875rem;
+  line-height: 0.95rem;
+}
+
+.text-3xs {
+  font-size: 0.625rem;
+  line-height: 0.85rem;
+}
+
+/* Size the editor chrome against its own pane, including nested splits. */
+.workspace-pane {
+  container-type: inline-size;
+}
+
+.workspace-icon,
+.workspace-control {
+  min-height: 28px;
+  border-radius: 4px;
+}
+
+.workspace-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.workspace-icon:hover:not(:disabled),
+button.workspace-control:hover:not(:disabled) {
+  background-color: #2d2d32;
+}
+
+.workspace-icon:focus-visible,
+.workspace-control:focus-visible,
+.workspace-format button:focus-visible {
+  outline: 2px solid #86efac;
+  outline-offset: -2px;
+}
+
+.workspace-breadcrumb,
+.workspace-reading-time {
+  display: none;
+}
+
+.workspace-format button {
+  flex-shrink: 0;
+  min-width: 28px;
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+@container (min-width: 720px) {
+  .workspace-breadcrumb {
+    display: flex;
+  }
+}
+
+@container (min-width: 920px) {
+  .workspace-reading-time {
+    display: flex;
+  }
+}
+
+@container (max-width: 480px) {
+  .workspace-header {
+    flex-wrap: wrap;
+  }
+
+  .workspace-controls {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+  }
+
+  .workspace-tabs > div:first-child {
+    min-width: min(5rem, 40%);
+  }
 }

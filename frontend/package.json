@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.4",
@@ -17,6 +19,21 @@
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.36.4",
     "@excalidraw/excalidraw": "^0.18.1",
+    "@tiptap/core": "^3.32.2",
+    "@tiptap/extension-highlight": "^3.32.2",
+    "@tiptap/extension-image": "^3.32.2",
+    "@tiptap/extension-link": "^3.32.2",
+    "@tiptap/extension-placeholder": "^3.32.2",
+    "@tiptap/extension-table": "^3.32.2",
+    "@tiptap/extension-table-cell": "^3.32.2",
+    "@tiptap/extension-table-header": "^3.32.2",
+    "@tiptap/extension-table-row": "^3.32.2",
+    "@tiptap/extension-task-item": "^3.32.2",
+    "@tiptap/extension-task-list": "^3.32.2",
+    "@tiptap/extension-underline": "^3.32.2",
+    "@tiptap/pm": "^3.32.2",
+    "@tiptap/react": "^3.32.2",
+    "@tiptap/starter-kit": "^3.32.2",
     "@types/lz-string": "^1.5.0",
     "@types/marked": "^6.0.0",
     "clsx": "^2.1.1",
@@ -24,9 +41,12 @@
     "lucide-react": "^0.475.0",
     "lz-string": "^1.5.0",
     "marked": "^18.1.3",
+    "mermaid": "11.17.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.0.2",
+    "tiptap-markdown": "^0.9.0",
+    "yaml": "^2.9.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -36,9 +56,14 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^28.1.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   }
 }

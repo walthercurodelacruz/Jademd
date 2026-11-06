@@ -1,5 +1,6 @@
+import { usePaneState } from '../store/PaneContext';
 import React, { useEffect, useRef, useState } from 'react';
-import { EditorState, Extension } from '@codemirror/state';
+import { EditorState, Extension, Transaction, Annotation } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -39,7 +40,10 @@ import {
   Eye,
   Edit3,
   Columns,
+  Sparkles,
 } from 'lucide-react';
+
+const externalUpdate = Annotation.define<boolean>();
 
 interface Props {
   initialContent: string;
@@ -107,7 +111,7 @@ class InlineImageWidget extends WidgetType {
     if (this.height) img.style.maxHeight = `${this.height}px`;
 
     img.onerror = () => {
-      wrap.innerHTML = `<span class="text-2xs text-amber-400 bg-amber-950/40 border border-amber-900/50 px-2.5 py-1 rounded-md inline-flex items-center gap-1 font-mono">🖼️ Imagen no encontrada: ${this.src}</span>`;
+      wrap.textContent = `🖼️ Imagen no encontrada: ${this.src}`;
     };
 
     wrap.appendChild(img);
@@ -207,9 +211,8 @@ const standardImagePlugin = ViewPlugin.fromClass(
 export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const saveTimeoutRef = useRef<any>(null);
   const [showLineNumbers, setShowLineNumbers] = useState(false);
-  const { saveCurrentNote, tree, noteMode, setNoteMode } = useVaultStore();
+  const { saveCurrentNote, queueNoteSave, tree, noteMode, setNoteMode, paneId } = usePaneState();
 
   // Helper: Extract note titles from vault for wikilink autocomplete
   const getNoteTitles = (node: FileNode | null): string[] => {
@@ -309,6 +312,7 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
     });
 
     const extensions: Extension[] = [
+      EditorState.lineSeparator.of(initialContent.includes('\r\n') ? '\r\n' : '\n'),
       highlightActiveLineGutter(),
       highlightSpecialChars(),
       history(),
@@ -330,8 +334,8 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
         {
           key: 'Mod-s',
           run: (view) => {
-            const content = view.state.doc.toString();
-            saveCurrentNote(content);
+            const content = view.state.sliceDoc();
+            void saveCurrentNote(content, path).catch(() => {});
             return true;
           },
         },
@@ -339,12 +343,9 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
         ...historyKeymap,
       ]),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          const content = update.state.doc.toString();
-          if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-          saveTimeoutRef.current = setTimeout(() => {
-            saveCurrentNote(content);
-          }, 400);
+        if (update.docChanged && !update.transactions.some((transaction) => transaction.annotation(externalUpdate))) {
+          const content = update.state.sliceDoc();
+          queueNoteSave(content, path, 400);
         }
       }),
     ];
@@ -366,10 +367,42 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
     viewRef.current = view;
 
     return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       view.destroy();
     };
   }, [path, showLineNumbers]);
+
+  // Sync content when loaded asynchronously
+  useEffect(() => {
+    if (viewRef.current && initialContent !== undefined) {
+      const currentDoc = viewRef.current.state.sliceDoc();
+      if (currentDoc !== initialContent) {
+        viewRef.current.dispatch({
+          changes: { from: 0, to: viewRef.current.state.doc.length, insert: initialContent },
+          annotations: [Transaction.addToHistory.of(false), externalUpdate.of(true)],
+        });
+      }
+    }
+  }, [initialContent]);
+
+  useEffect(() => {
+    const navigate = (event: Event) => {
+      const detail = (event as CustomEvent<{ anchor: string; paneId: string }>).detail;
+      if (detail.paneId !== paneId) return;
+      const anchor = detail.anchor;
+      const view = viewRef.current;
+      if (!view) return;
+      const lines = view.state.sliceDoc().split(/\r?\n/);
+      const index = lines.findIndex((line) => anchor.startsWith('^')
+        ? line.trimEnd().endsWith(anchor)
+        : line.replace(/^ {0,3}#{1,6}\s+/, '').replace(/\s+#+\s*$/, '').trim().toLowerCase() === anchor.split('#').at(-1)?.trim().toLowerCase());
+      if (index >= 0) {
+        const position = view.state.doc.line(index + 1).from;
+        view.dispatch({ selection: { anchor: position }, effects: EditorView.scrollIntoView(position, { y: 'center' }) });
+      }
+    };
+    window.addEventListener('jademd:navigate-anchor', navigate);
+    return () => window.removeEventListener('jademd:navigate-anchor', navigate);
+  }, [path, paneId]);
 
   return (
     <div className="h-full w-full relative flex flex-col bg-obsidian-bg overflow-hidden">
@@ -465,33 +498,33 @@ export const CodeMirrorEditor: React.FC<Props> = ({ initialContent, path }) => {
           <div className="w-[1px] h-4 bg-obsidian-border mx-1" />
           <button
             onClick={() => setNoteMode('live')}
-            title="Modo Edición"
+            title="Vista Live (Lectura renderizada y editable directamente)"
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
               noteMode === 'live' ? 'text-jade-400 bg-obsidian-card font-medium' : 'hover:text-white hover:bg-obsidian-hover'
             }`}
           >
-            <Edit3 size={13} />
-            <span>Editar</span>
+            <Sparkles size={13} />
+            <span>Live</span>
           </button>
           <button
-            onClick={() => setNoteMode('reading')}
-            title="Modo Lectura (Formateado limpio)"
+            onClick={() => setNoteMode('source')}
+            title="Modo Código Fuente"
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
-              noteMode === 'reading' ? 'text-jade-400 bg-obsidian-card font-medium' : 'hover:text-white hover:bg-obsidian-hover'
+              noteMode === 'source' ? 'text-jade-400 bg-obsidian-card font-medium' : 'hover:text-white hover:bg-obsidian-hover'
             }`}
           >
-            <Eye size={13} />
-            <span>Lectura</span>
+            <Edit3 size={13} />
+            <span>Código</span>
           </button>
           <button
             onClick={() => setNoteMode('split-preview')}
-            title="Modo Dividido (Editor + Vista Previa)"
+            title="Modo Doble Panel (Código + Live)"
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition ${
               noteMode === 'split-preview' ? 'text-jade-400 bg-obsidian-card font-medium' : 'hover:text-white hover:bg-obsidian-hover'
             }`}
           >
             <Columns size={13} />
-            <span>Dividido</span>
+            <span>Doble</span>
           </button>
         </div>
       </div>

@@ -1,51 +1,43 @@
+import { PublicationPanel } from './components/PublicationPanel';
+import { ExportPanel } from './components/ExportPanel';
+import { bindings, displayShortcut } from './utils/commands';
+import { ProductivityPanel } from './components/ProductivityPanel';
+import { useProductivityStore } from './store/useProductivityStore';
+import { IntegrityPanel } from './components/IntegrityPanel';
+import { CommandPalette } from './components/CommandPalette';
+import { FileOperations } from './components/FileOperations';
 import React, { useEffect, useState } from 'react';
-import { useVaultStore } from './store/useVaultStore';
-import { FileTree } from './components/FileTree';
-import { CodeMirrorEditor } from './editor/CodeMirrorEditor';
-import { MarkdownPreview } from './components/MarkdownPreview';
-import { ImageViewer } from './components/ImageViewer';
+import { useVaultStore, isExcalidrawFile } from './store/useVaultStore';
+import { UnifiedSidebar } from './components/UnifiedSidebar';
+import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { DocumentWorkspace } from './components/DocumentWorkspace';
+import { DocumentView } from './components/DocumentView';
 import { GraphView } from './components/GraphView';
-import { CanvasView } from './components/CanvasView';
-import { ExcalidrawView } from './components/ExcalidrawView';
-import { BacklinksPanel } from './components/BacklinksPanel';
 import { SearchModal } from './components/SearchModal';
 import { VaultModal } from './components/VaultModal';
 import {
+  Terminal, Trash2, CalendarDays,
   Columns2,
-  FilePlus,
-  FolderPlus,
-  FolderSync,
   HardDrive,
-  Info,
   Network,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   Sparkles,
   X,
+  Plus,
   FileText,
   LayoutGrid,
   Image as ImageIcon,
-  Edit3,
-  BookOpen,
-  Columns,
-  Palette
+  Palette,
+  FolderTree,
+  ListTree,
+  Link2,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
-
-const isExcalidrawFile = (path?: string | null, content?: string): boolean => {
-  if (!path) return false;
-  const lower = path.toLowerCase();
-  if (lower.endsWith('.excalidraw.md') || lower.endsWith('.excalidraw')) return true;
-  if (content && (content.includes('excalidraw-plugin:') || content.includes('```compressed-json'))) {
-    return true;
-  }
-  return false;
-};
 
 export const App: React.FC = () => {
   const {
     vault,
-    tree,
     activePath,
     activeContent,
     activeMetadata,
@@ -57,26 +49,51 @@ export const App: React.FC = () => {
     viewMode,
     setViewMode,
     noteMode,
-    setNoteMode,
-    isSaving,
-    openLocalVault,
+    initializeVault,
+    isLoading,
+    saveError,
+    noteError,
+    noteLoadState,
+    recoveryError,
+    drafts,
+    flushPendingSaves,
     setSearchOpen,
+    knownExcalidrawNotes,
+    sidebarPosition,
+    activeInspectorTab,
+    setActiveInspectorTab,
+    zenMode,
+    toggleZenMode,
   } = useVaultStore();
 
+  const shortcutSettings = useProductivityStore((state) => state.settings.shortcuts);
+  const paletteHint = bindings("palette", shortcutSettings).map(displayShortcut).join(" / ");
+  const searchHint = bindings("search", shortcutSettings).map(displayShortcut).join(" / ");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [backlinksOpen, setBacklinksOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(288);
   const [vaultModalOpen, setVaultModalOpen] = useState(false);
 
-  // Auto-connect to vault if exists on startup
+  useEffect(() => { void initializeVault(); }, [initializeVault]);
   useEffect(() => {
-    // If no vault open, try default local vault
-    if (!vault) {
-      // Check if user has an existing notes directory or open our sample vault
-      openLocalVault('/mnt/dm-0/RECURSOS/RAIZ/RAIZ', 'RAIZ').catch(() => {
-        // Fallback to sample notes in project folder
-        openLocalVault('./demo_vault', 'Bóveda Jademd');
-      });
-    }
+    const warnUnsaved = (event: BeforeUnloadEvent) => {
+      if (Object.keys(useVaultStore.getState().drafts).length) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warnUnsaved);
+    return () => window.removeEventListener('beforeunload', warnUnsaved);
+  }, []);
+
+  useEffect(() => {
+    return window.jademdDesktop?.onCloseRequested(async () => {
+      try {
+        await useVaultStore.getState().flushPendingSaves();
+        window.jademdDesktop?.readyToClose();
+      } catch {
+        alert('No se pudieron guardar todos los cambios. Resuelve el error de guardado antes de cerrar.');
+      }
+    });
   }, []);
 
   const handleCreateNoteRoot = () => {
@@ -84,12 +101,6 @@ export const App: React.FC = () => {
     if (!name) return;
     const cleanName = name.endsWith('.md') ? name : `${name}.md`;
     createNewNote(cleanName);
-  };
-
-  const handleCreateFolderRoot = () => {
-    const name = prompt('Nombre de la nueva carpeta:');
-    if (!name) return;
-    createNewFolder(name);
   };
 
   const handleCreateCanvasRoot = () => {
@@ -110,279 +121,156 @@ export const App: React.FC = () => {
     createNewNote(cleanName);
   };
 
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-obsidian-bg text-obsidian-text">
-      {/* Activity Bar (Icons on Left Edge) */}
-      <div className="w-12 bg-obsidian-sidebar border-r border-obsidian-border flex flex-col items-center py-3 gap-3 select-none flex-shrink-0 z-20">
-        {/* JadeMD Brand Logo */}
-        <div className="w-8 h-8 rounded-lg bg-jade-600 flex items-center justify-center font-bold text-white shadow-lg shadow-jade-950/50">
-          J
-        </div>
+  const handleToggleBacklinks = () => {
+    if (sidebarOpen && activeInspectorTab === 'backlinks') {
+      setSidebarOpen(false);
+    } else {
+      setActiveInspectorTab('backlinks');
+      setSidebarOpen(true);
+    }
+  };
 
-        <div className="w-6 h-px bg-obsidian-border my-1" />
-
-        {/* Sidebar Toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          title={sidebarOpen ? 'Ocultar explorador' : 'Mostrar explorador'}
-          className={`p-2 rounded-lg transition ${
-            sidebarOpen ? 'text-jade-400 bg-obsidian-card' : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-          }`}
-        >
-          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
-        </button>
-
-        {/* Search */}
-        <button
-          onClick={() => setSearchOpen(true)}
-          title="Buscar en la bóveda (Ctrl + O)"
-          className="p-2 text-obsidian-muted hover:text-white hover:bg-obsidian-hover rounded-lg transition"
-        >
-          <Search size={18} />
-        </button>
-
-        {/* Graph View Toggle */}
-        <button
-          onClick={() => setViewMode(viewMode === 'graph' ? 'editor' : 'graph')}
-          title="Vista de Grafo (Graph View)"
-          className={`p-2 rounded-lg transition ${
-            viewMode === 'graph' ? 'text-jade-400 bg-obsidian-card' : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-          }`}
-        >
-          <Network size={18} />
-        </button>
-
-        {/* Split Mode Toggle */}
-        <button
-          onClick={() => setViewMode(viewMode === 'split' ? 'editor' : 'split')}
-          title="Modo Dividido (Editor + Grafo)"
-          className={`p-2 rounded-lg transition ${
-            viewMode === 'split' ? 'text-jade-400 bg-obsidian-card' : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-          }`}
-        >
-          <Columns2 size={18} />
-        </button>
-
-        <div className="mt-auto flex flex-col gap-2">
-          {/* Backlinks Panel Toggle */}
-          <button
-            onClick={() => setBacklinksOpen(!backlinksOpen)}
-            title="Panel de información y enlaces entrantes"
-            className={`p-2 rounded-lg transition ${
-              backlinksOpen ? 'text-jade-400 bg-obsidian-card' : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-            }`}
-          >
-            <Info size={18} />
-          </button>
-
-          {/* Vault Switcher */}
-          <button
-            onClick={() => setVaultModalOpen(true)}
-            title="Abrir o cambiar de Bóveda"
-            className="p-2 text-obsidian-muted hover:text-white hover:bg-obsidian-hover rounded-lg transition"
-          >
-            <HardDrive size={18} />
-          </button>
-        </div>
+  // Activity Bar with direct tab switching and status controls
+  const renderActivityBar = () => (
+    <div
+      className={`w-12 bg-obsidian-sidebar flex flex-col items-center py-3 gap-3 select-none flex-shrink-0 z-20 ${
+        sidebarPosition === 'right'
+          ? 'border-l border-obsidian-border'
+          : 'border-r border-obsidian-border'
+      }`}
+    >
+      {/* JadeMD Brand Logo */}
+      <div className="w-8 h-8 rounded-lg bg-jade-600 flex items-center justify-center font-bold text-white shadow-lg shadow-jade-950/50">
+        J
       </div>
 
-      {/* Left Sidebar (File Explorer) */}
-      {sidebarOpen && (
-        <div className="w-64 bg-obsidian-sidebar border-r border-obsidian-border flex flex-col h-full select-none flex-shrink-0 animate-in slide-in-from-left-4 duration-150">
-          {/* Vault Info Header */}
-          <div className="p-3 border-b border-obsidian-border flex items-center justify-between">
-            <div className="truncate">
-              <div className="text-xs font-semibold text-obsidian-text truncate flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-jade-500 animate-pulse" />
-                <span>{vault?.name || 'Cargando bóveda...'}</span>
-              </div>
-              <div className="text-2xs text-obsidian-muted truncate mt-0.5" title={vault?.path}>
-                {vault?.storage_type === 'webdav' ? 'Nube (WebDAV)' : vault?.path || 'Local'}
-              </div>
-            </div>
+      <div className="w-6 h-px bg-obsidian-border my-1" />
 
-            <button
-              onClick={() => setVaultModalOpen(true)}
-              title="Cambiar Bóveda"
-              className="p-1 text-obsidian-muted hover:text-white rounded hover:bg-obsidian-hover"
-            >
-              <FolderSync size={14} />
-            </button>
-          </div>
+      {/* Explorer / Vault Tab Toggle */}
+      <button
+        onClick={() => {
+          if (sidebarOpen && activeInspectorTab === 'tree') {
+            setSidebarOpen(false);
+          } else {
+            setActiveInspectorTab('tree');
+            setSidebarOpen(true);
+          }
+        }}
+        title="Explorador de Bóveda"
+        className={`p-2 rounded-lg transition ${
+          sidebarOpen && activeInspectorTab === 'tree'
+            ? 'text-jade-400 bg-obsidian-card shadow-sm border border-jade-500/30'
+            : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+        }`}
+      >
+        <FolderTree size={18} />
+      </button>
 
-          {/* Quick Toolbar */}
-          <div className="px-3 py-2 border-b border-obsidian-border/50 flex items-center justify-between text-xs text-obsidian-muted">
-            <span className="uppercase tracking-wider font-semibold text-2xs">Archivos</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleCreateNoteRoot}
-                title="Nueva Nota Markdown"
-                className="p-1 hover:text-jade-400 hover:bg-obsidian-hover rounded"
-              >
-                <FilePlus size={14} />
-              </button>
-              <button
-                onClick={handleCreateCanvasRoot}
-                title="Nuevo Lienzo Visual (.canvas)"
-                className="p-1 hover:text-jade-400 hover:bg-obsidian-hover rounded"
-              >
-                <LayoutGrid size={14} />
-              </button>
-              <button
-                onClick={handleCreateExcalidrawRoot}
-                title="Nuevo Dibujo Excalidraw (.excalidraw.md)"
-                className="p-1 hover:text-purple-400 hover:bg-obsidian-hover rounded"
-              >
-                <Palette size={14} />
-              </button>
-              <button
-                onClick={handleCreateFolderRoot}
-                title="Nueva Carpeta"
-                className="p-1 hover:text-jade-400 hover:bg-obsidian-hover rounded"
-              >
-                <FolderPlus size={14} />
-              </button>
-            </div>
-          </div>
+      {/* Outline Tab Toggle */}
+      <button
+        onClick={() => {
+          if (sidebarOpen && activeInspectorTab === 'outline') {
+            setSidebarOpen(false);
+          } else {
+            setActiveInspectorTab('outline');
+            setSidebarOpen(true);
+          }
+        }}
+        title="Esquema / Índice del Documento"
+        className={`p-2 rounded-lg transition ${
+          sidebarOpen && activeInspectorTab === 'outline'
+            ? 'text-jade-400 bg-obsidian-card shadow-sm border border-jade-500/30'
+            : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+        }`}
+      >
+        <ListTree size={18} />
+      </button>
 
-          {/* Tree View */}
-          <div className="flex-1 overflow-y-auto p-2">
-            {tree ? (
-              <FileTree node={tree} />
-            ) : (
-              <div className="text-center py-8 text-xs text-obsidian-muted">
-                No hay archivos en la bóveda activa.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Backlinks Tab Toggle */}
+      <button
+        onClick={() => {
+          if (sidebarOpen && activeInspectorTab === 'backlinks') {
+            setSidebarOpen(false);
+          } else {
+            setActiveInspectorTab('backlinks');
+            setSidebarOpen(true);
+          }
+        }}
+        title="Enlaces Entrantes (Backlinks)"
+        className={`p-2 rounded-lg transition ${
+          sidebarOpen && activeInspectorTab === 'backlinks'
+            ? 'text-jade-400 bg-obsidian-card shadow-sm border border-jade-500/30'
+            : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+        }`}
+      >
+        <Link2 size={18} />
+      </button>
 
-      {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-obsidian-bg min-h-0">
-        {/* Tabs Bar */}
-        <div className="h-10 bg-obsidian-sidebar border-b border-obsidian-border flex items-center justify-between px-2 gap-1 select-none flex-shrink-0 relative z-30 shadow-xs">
-          <div className="flex items-center gap-1 overflow-x-auto flex-1 h-full py-1">
-            {openTabs.map((tabPath) => {
-              const isActive = tabPath === activePath;
-              const isImg = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(tabPath);
-              const isCanvas = tabPath.endsWith('.canvas');
-              const isExcalidraw = isExcalidrawFile(tabPath);
-              const tabTitle = tabPath.replace(/\.md$/, '').split('/').pop() || tabPath;
+      <button onClick={() => useVaultStore.getState().setCommandPaletteOpen(true)} title={`Paleta de comandos ${paletteHint}`} aria-label="Paleta de comandos" className="p-2 text-obsidian-muted hover:text-white rounded-lg"><Terminal size={18} /></button>
+      <button onClick={() => useProductivityStore.getState().show()} title="Productividad y atajos" aria-label="Productividad y atajos" className="p-2 text-obsidian-muted hover:text-white rounded-lg"><CalendarDays size={18} /></button>
+      <button onClick={() => useVaultStore.getState().setTrashOpen(true)} title="Papelera" aria-label="Papelera" className="p-2 text-obsidian-muted hover:text-white rounded-lg"><Trash2 size={18} /></button>
+      {/* Search */}
+      <button
+        onClick={() => setSearchOpen(true)}
+        title={`Buscar en la bóveda ${searchHint}`}
+        className="p-2 text-obsidian-muted hover:text-white hover:bg-obsidian-hover rounded-lg transition"
+      >
+        <Search size={18} />
+      </button>
 
-              return (
-                <div
-                  key={tabPath}
-                  onClick={() => openNote(tabPath)}
-                  className={`group flex items-center gap-2 px-3 py-1 rounded-t-md text-xs cursor-pointer transition border-b-2 flex-shrink-0 ${
-                    isActive
-                      ? 'bg-obsidian-bg text-obsidian-text border-jade-500 font-medium'
-                      : 'text-obsidian-muted hover:text-obsidian-text hover:bg-obsidian-hover border-transparent'
-                  }`}
-                >
-                  {isImg ? (
-                    <ImageIcon size={13} className={isActive ? 'text-sky-400' : 'text-obsidian-muted'} />
-                  ) : isCanvas ? (
-                    <LayoutGrid size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
-                  ) : isExcalidraw ? (
-                    <Palette size={13} className={isActive ? 'text-purple-400' : 'text-purple-400/80'} />
-                  ) : (
-                    <FileText size={13} className={isActive ? 'text-jade-400' : 'text-obsidian-muted'} />
-                  )}
-                  <span className="truncate max-w-[150px]">{tabTitle}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(tabPath);
-                    }}
-                    className="p-0.5 rounded-full hover:bg-obsidian-border text-obsidian-muted hover:text-white"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              );
-            })}
+      {/* Graph View Toggle */}
+      <button
+        onClick={() => setViewMode(viewMode === 'graph' ? 'editor' : 'graph')}
+        title="Vista de Grafo (Graph View)"
+        className={`p-2 rounded-lg transition ${
+          viewMode === 'graph'
+            ? 'text-jade-400 bg-obsidian-card shadow-sm border border-jade-500/30'
+            : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+        }`}
+      >
+        <Network size={18} />
+      </button>
 
-            {openTabs.length === 0 && (
-              <div className="text-2xs text-obsidian-muted px-3 italic">
-                Ninguna nota abierta. Selecciona una en el explorador o pulsa Ctrl+O para buscar.
-              </div>
-            )}
-          </div>
+      {/* Split Mode Toggle */}
+      <button
+        onClick={() => setViewMode(viewMode === 'split' ? 'editor' : 'split')}
+        title="Modo Dividido (Editor + Grafo)"
+        className={`p-2 rounded-lg transition ${
+          viewMode === 'split'
+            ? 'text-jade-400 bg-obsidian-card shadow-sm border border-jade-500/30'
+            : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+        }`}
+      >
+        <Columns2 size={18} />
+      </button>
 
-          {/* Mode Switcher for Active Markdown Note */}
-          {activePath &&
-            !activePath.endsWith('.canvas') &&
-            !isExcalidrawFile(activePath, activeContent) &&
-            !/\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) && (
-            <div className="flex items-center gap-0.5 bg-obsidian-bg/90 border border-obsidian-border/70 rounded-lg p-0.5 ml-2 flex-shrink-0 shadow-sm">
-              <button
-                onClick={() => setNoteMode('live')}
-                title="Modo Edición / Live Preview"
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
-                  noteMode === 'live'
-                    ? 'bg-jade-600 text-white shadow-xs'
-                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-                }`}
-              >
-                <Edit3 size={12} />
-                <span>Editar</span>
-              </button>
-              <button
-                onClick={() => setNoteMode('reading')}
-                title="Modo Lectura (Renderizado Completo)"
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
-                  noteMode === 'reading'
-                    ? 'bg-jade-600 text-white shadow-xs'
-                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-                }`}
-              >
-                <BookOpen size={12} />
-                <span>Lectura</span>
-              </button>
-              <button
-                onClick={() => setNoteMode('split-preview')}
-                title="Modo Doble Panel (Editor + Lectura)"
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs font-medium transition ${
-                  noteMode === 'split-preview'
-                    ? 'bg-jade-600 text-white shadow-xs'
-                    : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
-                }`}
-              >
-                <Columns size={12} />
-                <span>Doble</span>
-              </button>
-            </div>
-          )}
-        </div>
+      <div className="mt-auto flex flex-col gap-2">
+        {/* Zen Mode Toggle */}
+        <button
+          onClick={toggleZenMode}
+          title={zenMode ? 'Salir del Modo Enfoque' : 'Modo Enfoque / Zen'}
+          className={`p-2 rounded-lg transition ${
+            zenMode
+              ? 'text-jade-400 bg-jade-950/80 border border-jade-500/40 shadow-sm'
+              : 'text-obsidian-muted hover:text-white hover:bg-obsidian-hover'
+          }`}
+        >
+          {zenMode ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+        </button>
 
-        {/* Content Body */}
-        <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
-          {/* Main View Area */}
-          <div className="flex-1 flex overflow-hidden relative z-10 min-h-0">
-            {viewMode === 'editor' && (
-              activePath ? (
-                activePath.endsWith('.canvas') ? (
-                  <CanvasView />
-                ) : isExcalidrawFile(activePath, activeContent) ? (
-                  <ExcalidrawView />
-                ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
-                  <ImageViewer path={activePath} />
-                ) : noteMode === 'reading' ? (
-                  <MarkdownPreview content={activeContent} path={activePath} />
-                ) : noteMode === 'split-preview' ? (
-                  <div className="flex-1 flex h-full overflow-hidden">
-                    <div className="w-1/2 h-full border-r border-obsidian-border">
-                      <CodeMirrorEditor initialContent={activeContent} path={activePath} />
-                    </div>
-                    <div className="w-1/2 h-full">
-                      <MarkdownPreview content={activeContent} path={activePath} />
-                    </div>
-                  </div>
-                ) : (
-                  <CodeMirrorEditor initialContent={activeContent} path={activePath} />
-                )
-              ) : (
+        {/* Vault Switcher */}
+        <button
+          onClick={() => setVaultModalOpen(true)}
+          title="Abrir o cambiar de Bóveda"
+          className="p-2 text-obsidian-muted hover:text-white hover:bg-obsidian-hover rounded-lg transition"
+        >
+          <HardDrive size={18} />
+        </button>
+      </div>
+    </div>
+  );
+
+  const welcome = (
                 <div className="flex-1 flex flex-col items-center justify-center text-obsidian-muted select-none">
                   <div className="w-16 h-16 rounded-2xl bg-jade-950/60 border border-jade-800/40 flex items-center justify-center text-jade-400 mb-4 shadow-xl">
                     <Sparkles size={32} />
@@ -419,41 +307,43 @@ export const App: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              )
-            )}
+  );
 
-            {viewMode === 'graph' && <GraphView />}
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-obsidian-bg text-obsidian-text font-sans antialiased">
+      {/* Left-docked elements (When sidebarPosition === 'left' and not in Zen Mode) */}
+      {!zenMode && sidebarPosition === 'left' && (
+        <>
+          {renderActivityBar()}
+          {sidebarOpen && (
+            <UnifiedSidebar
+              width={sidebarWidth}
+              onResize={setSidebarWidth}
+              onClose={() => setSidebarOpen(false)}
+              onOpenVaultModal={() => setVaultModalOpen(true)}
+            />
+          )}
+        </>
+      )}
 
-            {viewMode === 'split' && (
-              <>
-                <div className="w-1/2 h-full border-r border-obsidian-border">
-                  {activePath ? (
-                    activePath.endsWith('.canvas') ? (
-                      <CanvasView />
-                    ) : isExcalidrawFile(activePath, activeContent) ? (
-                      <ExcalidrawView />
-                    ) : /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i.test(activePath) ? (
-                      <ImageViewer path={activePath} />
-                    ) : noteMode === 'reading' ? (
-                      <MarkdownPreview content={activeContent} path={activePath} />
-                    ) : (
-                      <CodeMirrorEditor initialContent={activeContent} path={activePath} />
-                    )
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-obsidian-muted">
-                      Selecciona una nota para editar
-                    </div>
-                  )}
-                </div>
-                <div className="w-1/2 h-full">
-                  <GraphView />
-                </div>
-              </>
-            )}
+      <IntegrityPanel />
+      <ProductivityPanel />
+      <ExportPanel />
+      <PublicationPanel />
+      {/* Main Workspace Area (Center / Left) */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-obsidian-bg min-h-0 relative">
+        {(saveError || recoveryError || Object.keys(drafts).length > 0) && (
+          <div role={saveError || recoveryError ? 'alert' : 'status'} className="px-4 py-2 text-xs bg-amber-950/50 text-amber-200 flex items-center justify-between gap-3">
+            <span>{saveError || recoveryError || `${Object.keys(drafts).length} documento(s) con cambios pendientes o recuperados.`}</span>
+            <button disabled={isLoading} className="underline flex-shrink-0" onClick={() => void flushPendingSaves().catch(() => {})}>Guardar pendientes / reintentar</button>
           </div>
-
-          {/* Right Info / Backlinks Panel */}
-          {backlinksOpen && activePath && <BacklinksPanel />}
+        )}
+        {noteError && noteLoadState !== 'error' && <p role="alert" className="px-4 py-2 text-sm text-rose-300">{noteError}</p>}
+        {!vault && !isLoading && <button className="p-3 text-jade-300 underline" onClick={() => setVaultModalOpen(true)}>Abrir una bóveda</button>}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {viewMode !== 'graph' && <DocumentWorkspace sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} onToggleBacklinks={handleToggleBacklinks}
+              backlinksOpen={sidebarOpen && activeInspectorTab === 'backlinks'} onCreateNote={handleCreateNoteRoot} emptyState={welcome} />}
+          {viewMode !== 'editor' && <div className={viewMode === 'split' ? 'w-1/2 min-w-0 h-full' : 'flex-1 min-w-0 h-full'}><GraphView /></div>}
         </div>
 
         {/* Bottom Status Bar */}
@@ -461,7 +351,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-jade-400" />
-              <span>Rust Core: Activo (Axum + OpenDAL)</span>
+              <span>{isLoading ? 'Conectando…' : vault ? `Bóveda: ${vault.name}` : 'Sin bóveda conectada'}</span>
             </span>
             {activePath && (
               <span className="truncate max-w-md">
@@ -471,11 +361,9 @@ export const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            {isSaving ? (
-              <span className="text-jade-400">Guardando...</span>
-            ) : (
-              <span>Guardado automático</span>
-            )}
+            <span className="text-jade-400/90 font-mono text-3xs">
+              Dock: {sidebarPosition === 'right' ? 'Derecha' : 'Izquierda'}
+            </span>
             {activeMetadata && (
               <>
                 <span>{activeMetadata.word_count} palabras</span>
@@ -486,9 +374,26 @@ export const App: React.FC = () => {
         </div>
       </div>
 
+      {/* Right-docked elements (When sidebarPosition === 'right' and not in Zen Mode) */}
+      {!zenMode && sidebarPosition === 'right' && (
+        <>
+          {sidebarOpen && (
+            <UnifiedSidebar
+              width={sidebarWidth}
+              onResize={setSidebarWidth}
+              onClose={() => setSidebarOpen(false)}
+              onOpenVaultModal={() => setVaultModalOpen(true)}
+            />
+          )}
+          {renderActivityBar()}
+        </>
+      )}
+
+      <CommandPalette />
+      <FileOperations />
       {/* Modals */}
       <SearchModal />
-      <VaultModal open={vaultModalOpen} onClose={() => setVaultModalOpen(false)} />
+      <VaultModal open={vaultModalOpen || (!vault && !isLoading)} onClose={() => setVaultModalOpen(false)} />
     </div>
   );
 };

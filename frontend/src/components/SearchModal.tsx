@@ -3,7 +3,7 @@ import { useVaultStore } from '../store/useVaultStore';
 import { FileText, Search, X } from 'lucide-react';
 
 export const SearchModal: React.FC = () => {
-  const { searchOpen, setSearchOpen, searchQuery, performSearch, searchResults, openNote } = useVaultStore();
+  const { searchOpen, setSearchOpen, searchQuery, performSearch, searchResults, searchError, openNote } = useVaultStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -14,10 +14,6 @@ export const SearchModal: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'o' || e.key === 'k' || e.key === 'f')) {
-        e.preventDefault();
-        setSearchOpen(!searchOpen);
-      }
       if (e.key === 'Escape' && searchOpen) {
         setSearchOpen(false);
       }
@@ -34,7 +30,7 @@ export const SearchModal: React.FC = () => {
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-24"
       onClick={() => setSearchOpen(false)}
     >
-      <div
+      <div role="dialog" aria-modal="true" aria-label="Buscar en la bóveda"
         className="w-full max-w-2xl bg-obsidian-card border border-obsidian-border rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
@@ -57,6 +53,8 @@ export const SearchModal: React.FC = () => {
           </button>
         </div>
 
+        <p className="px-4 py-2 text-xs text-obsidian-muted">Combina: texto tag:trabajo path:Notas [estado:activo] -tag:archivo. Usa comillas para frases. Máximo 200 notas.</p>
+        {searchError && <p role="alert" className="px-4 py-2 text-sm text-rose-300">{searchError}</p>}
         {/* Results List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {searchResults.length === 0 && searchQuery.trim() !== '' ? (

@@ -2,6 +2,9 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
+import { useVaultStore } from './store/useVaultStore';
+
+(window as any).useVaultStore = useVaultStore;
 
 interface Props {
   children: ReactNode;

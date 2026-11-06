@@ -26,7 +26,7 @@ export interface HeadingItem {
 export interface NoteMetadata {
   path: string;
   title: string;
-  frontmatter?: Record<string, any>;
+  frontmatter?: Record<string, import('../utils/frontmatter').PropertyValue>;
   tags: string[];
   outlinks: string[];
   backlinks: string[];
@@ -62,3 +62,6 @@ export interface SearchResult {
   title: string;
   matches: SearchMatch[];
 }
+
+export interface TrashEntry { id: string; path: string; deleted_at: number }
+export interface MoveResult { from: string; to: string; updated_files: string[] }

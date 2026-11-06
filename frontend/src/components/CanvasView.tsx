@@ -1,35 +1,13 @@
+import { MarkdownPreview } from './MarkdownPreview';
+import { usePaneState } from '../store/PaneContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { useVaultStore } from '../store/useVaultStore';
 import { Plus, ZoomIn, ZoomOut, RotateCcw, FileText, Move } from 'lucide-react';
 
-interface CanvasNode {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  type: 'text' | 'file' | 'group' | 'link';
-  text?: string;
-  file?: string;
-  color?: string;
-}
-
-interface CanvasEdge {
-  id: string;
-  fromNode: string;
-  fromSide?: 'top' | 'right' | 'bottom' | 'left';
-  toNode: string;
-  toSide?: 'top' | 'right' | 'bottom' | 'left';
-  label?: string;
-}
-
-interface CanvasData {
-  nodes: CanvasNode[];
-  edges: CanvasEdge[];
-}
+import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds } from '../utils/canvasDocument';
 
 export const CanvasView: React.FC = () => {
-  const { activePath, activeContent, saveCurrentNote, openNote } = useVaultStore();
+  const { activePath, activeContent, queueNoteSave, openNote, navigateToLink, setNoteMode } = usePaneState();
   const [data, setData] = useState<CanvasData>({ nodes: [], edges: [] });
   const [pan, setPan] = useState({ x: 400, y: 300 });
   const [zoom, setZoom] = useState(1);
@@ -40,90 +18,58 @@ export const CanvasView: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Parse initial canvas content
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState(false);
+  const [operationError, setOperationError] = useState('');
+  const [arrowId] = useState(() => `canvas-arrow-${crypto.randomUUID()}`);
+  const point = (event: React.MouseEvent) => { const rect = containerRef.current!.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; };
+  const [parseError, setParseError] = useState<string | null>(null);
   useEffect(() => {
     try {
-      if (activeContent.trim()) {
-        const parsed = JSON.parse(activeContent);
-        setData({
-          nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
-          edges: Array.isArray(parsed.edges) ? parsed.edges : [],
-        });
-      } else {
-        // Default template
-        const initial: CanvasData = {
-          nodes: [
-            {
-              id: 'node-welcome',
-              x: 100,
-              y: 100,
-              width: 260,
-              height: 140,
-              type: 'text',
-              text: '### Lienzo Infinito Jademd\nPuedes agregar ideas, notas conectadas y organizar visualmente tu conocimiento.',
-              color: '#10b981',
-            },
-            {
-              id: 'node-note',
-              x: 450,
-              y: 100,
-              width: 260,
-              height: 120,
-              type: 'file',
-              file: 'Bienvenida.md',
-              color: '#3b82f6',
-            },
-          ],
-          edges: [
-            {
-              id: 'edge-1',
-              fromNode: 'node-welcome',
-              fromSide: 'right',
-              toNode: 'node-note',
-              toSide: 'left',
-              label: 'explora',
-            },
-          ],
-        };
-        setData(initial);
-        saveCurrentNote(JSON.stringify(initial, null, 2));
-      }
+      // Keep extension fields intact when editing another application's Canvas.
+      setData(parseCanvas(activeContent));
+      setParseError(null);
     } catch (e) {
-      console.warn('No se pudo parsear el archivo .canvas como JSON', e);
+      setParseError(`No se puede editar este lienzo: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [activePath]);
+  }, [activePath, activeContent]);
 
   const saveCanvas = (updated: CanvasData) => {
     setData(updated);
-    saveCurrentNote(JSON.stringify(updated, null, 2));
+    if (activePath && !parseError) {
+      const content = serializeCanvas(activeContent, updated);
+      if (content !== activeContent) queueNoteSave(content, activePath);
+    }
   };
 
   // Node Dragging Handlers
   const handleMouseDownNode = (e: React.MouseEvent, node: CanvasNode) => {
     e.stopPropagation();
+    if ((e.target as HTMLElement).closest('button,a,input,textarea')) return;
+    setSelectedId(node.id);
     setDraggingNodeId(node.id);
     setDragOffset({
-      x: (e.clientX - pan.x) / zoom - node.x,
-      y: (e.clientY - pan.y) / zoom - node.y,
+      x: (point(e).x - pan.x) / zoom - node.x,
+      y: (point(e).y - pan.y) / zoom - node.y,
     });
   };
 
   const handleMouseDownCanvas = (e: React.MouseEvent) => {
     if (e.button === 0 || e.button === 1) {
       setIsPanning(true);
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      setPanStart({ x: point(e).x - pan.x, y: point(e).y - pan.y });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isPanning) {
       setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
+        x: point(e).x - panStart.x,
+        y: point(e).y - panStart.y,
       });
     } else if (draggingNodeId) {
-      const mouseX = (e.clientX - pan.x) / zoom;
-      const mouseY = (e.clientY - pan.y) / zoom;
+      const mouseX = (point(e).x - pan.x) / zoom;
+      const mouseY = (point(e).y - pan.y) / zoom;
       const newNodes = data.nodes.map((n) => {
         if (n.id === draggingNodeId) {
           return {
@@ -157,7 +103,7 @@ export const CanvasView: React.FC = () => {
 
   const addCard = () => {
     const newNode: CanvasNode = {
-      id: `node-${Date.now()}`,
+      id: crypto.randomUUID(),
       x: Math.round((-pan.x + 300) / zoom),
       y: Math.round((-pan.y + 200) / zoom),
       width: 250,
@@ -180,6 +126,16 @@ export const CanvasView: React.FC = () => {
     saveCanvas(updated);
   };
 
+  const addNode = (type: 'group' | 'file' | 'link') => {
+    const value = type === 'group' ? 'Grupo' : prompt(type === 'file' ? 'Ruta del archivo en la bóveda:' : 'URL del enlace (https://…):');
+    if (!value?.trim()) return;
+    if (type === 'link' && !/^https?:\/\//i.test(value.trim())) { setOperationError('Utiliza una URL HTTP o HTTPS'); return; }
+    const node: CanvasNode = { id: crypto.randomUUID(), type, x: Math.round(-pan.x/zoom+100), y: Math.round(-pan.y/zoom+100), width: type === 'group' ? 500 : 280, height: type === 'group' ? 350 : 180, ...(type === 'group' ? { label: value } : type === 'file' ? { file: value.trim() } : { url: value.trim() }) };
+    saveCanvas({ ...data, nodes: [...data.nodes, node] }); setSelectedId(node.id);
+  };
+  const selected = data.nodes.find((node) => node.id === selectedId);
+  if (parseError) return <div role="alert" className="p-6 text-rose-300">{parseError} El archivo original se conserva.</div>;
+
   return (
     <div
       ref={containerRef}
@@ -194,8 +150,36 @@ export const CanvasView: React.FC = () => {
         backgroundPosition: `${pan.x}px ${pan.y}px`,
       }}
     >
+      {operationError && <p role="alert" className="absolute bottom-4 left-4 z-30 bg-obsidian-bg p-2 text-rose-300 text-xs">{operationError}</p>}
+      {selected && <aside aria-label="Propiedades de tarjeta" className="absolute top-16 right-3 z-30 w-64 max-h-[80%] overflow-auto bg-obsidian-card border border-obsidian-border rounded p-3 text-xs" onMouseDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+        <div className="flex justify-between mb-2"><strong>Propiedades de tarjeta</strong><button onClick={() => setSelectedId(null)}>Cerrar</button></div>
+        <form key={JSON.stringify(selected)} onSubmit={(event) => {
+          event.preventDefault(); const values = new FormData(event.currentTarget);
+          const patch: Record<string, unknown> = {};
+          for (const key of ['x', 'y', 'width', 'height']) patch[key] = Number(values.get(key));
+          for (const key of ['color', 'label', 'file', 'url', 'background']) if (values.has(key)) patch[key] = String(values.get(key));
+          if (![patch.x, patch.y, patch.width, patch.height].every((value) => typeof value === 'number' && Number.isFinite(value)) || Number(patch.width) < 40 || Number(patch.height) < 40) { setOperationError('Dimensiones mínimas: 40 × 40'); return; }
+          if (patch.url && !/^https?:\/\//i.test(String(patch.url))) { setOperationError('Utiliza una URL HTTP o HTTPS'); return; }
+          saveCanvas({ ...data, nodes: data.nodes.map((node) => node.id === selected.id ? { ...node, ...patch } : node) }); setOperationError('');
+        }}>
+          {['x', 'y', 'width', 'height'].map((key) => <label key={key} className="block mb-2">{key}<input aria-label={`Tarjeta ${key}`} name={key} type="number" required defaultValue={Number(selected[key])} className="w-full bg-obsidian-bg p-1" /></label>)}
+          {['color', ...(selected.type === 'group' ? ['label', 'background'] : selected.type === 'file' ? ['file'] : selected.type === 'link' ? ['url'] : [])].map((key) => <label key={key} className="block mb-2">{key}<input aria-label={`Tarjeta ${key}`} name={key} defaultValue={String(selected[key] || '')} className="w-full bg-obsidian-bg p-1" /></label>)}
+          <button className="text-jade-300 underline">Aplicar propiedades</button>
+        </form>
+        <div className="flex gap-3 my-3"><button className="underline" onClick={() => { const copy = { ...selected, id: crypto.randomUUID(), x: selected.x+30, y: selected.y+30 }; saveCanvas({ ...data, nodes: [...data.nodes, copy] }); setSelectedId(copy.id); }}>Duplicar</button><button className="text-rose-300 underline" onClick={() => { if (confirm('¿Eliminar la tarjeta y sus conexiones?')) { saveCanvas(removeCanvasNode(data, selected.id)); setSelectedId(null); } }}>Eliminar</button></div>
+        <form className="border-t border-obsidian-border pt-2 space-y-2" onSubmit={(event) => {
+          event.preventDefault(); const values = new FormData(event.currentTarget);
+          try { saveCanvas(connectCanvasNodes(data, selected.id, String(values.get('to')), { label: String(values.get('label')), fromSide: String(values.get('fromSide')), toSide: String(values.get('toSide')), toEnd: 'arrow' })); setOperationError(''); } catch (error) { setOperationError(String(error)); }
+        }}>
+          <strong>Crear conexión</strong><select name="to" aria-label="Conectar con" className="w-full bg-obsidian-bg p-1">{data.nodes.filter((node) => node.id !== selected.id).map((node) => <option key={node.id} value={node.id}>{String(node.label || node.file || node.text || node.id).slice(0, 50)}</option>)}</select>
+          <input name="label" aria-label="Etiqueta de conexión" placeholder="Etiqueta" className="w-full bg-obsidian-bg p-1" />
+          {['fromSide', 'toSide'].map((key) => <label key={key} className="block">{key}<select name={key} className="w-full bg-obsidian-bg p-1" defaultValue={key === 'fromSide' ? 'right' : 'left'}>{['top', 'right', 'bottom', 'left'].map((side) => <option key={side}>{side}</option>)}</select></label>)}
+          <button className="text-jade-300 underline" disabled={data.nodes.length < 2}>Crear conexión</button>
+        </form>
+        {data.edges.filter((edge) => edge.fromNode === selected.id || edge.toNode === selected.id).map((edge) => <div key={edge.id} className="mt-2 border-t border-obsidian-border pt-2"><span>{String(edge.label || 'Conexión')}</span><button className="ml-2 underline" onClick={() => { const label = prompt('Etiqueta de conexión:', edge.label || ''); if (label !== null) saveCanvas({ ...data, edges: data.edges.map((item) => item.id === edge.id ? { ...item, label } : item) }); }}>Editar</button><button className="ml-2 text-rose-300" onClick={() => saveCanvas({ ...data, edges: data.edges.filter((item) => item.id !== edge.id) })}>Quitar</button></div>)}
+      </aside>}
       {/* Floating Toolbar */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-1 bg-obsidian-card/90 border border-obsidian-border rounded-lg p-1 shadow-lg backdrop-blur-sm">
+      <div onMouseDown={(event) => event.stopPropagation()} className="absolute top-4 left-4 max-w-[95%] overflow-x-auto z-20 flex items-center gap-1 bg-obsidian-card/90 border border-obsidian-border rounded-lg p-1 shadow-lg backdrop-blur-sm">
         <button
           onClick={addCard}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white bg-jade-600 hover:bg-jade-500 transition shadow-sm"
@@ -204,6 +188,11 @@ export const CanvasView: React.FC = () => {
           <Plus size={14} />
           <span>Agregar Tarjeta</span>
         </button>
+        <button className="px-2 text-xs" onClick={() => addNode('group')}>Grupo</button>
+        <button className="px-2 text-xs" onClick={() => addNode('file')}>Archivo</button>
+        <button className="px-2 text-xs" onClick={() => addNode('link')}>Enlace</button>
+        <button className="px-2 text-xs" onClick={() => setPreviewText(!previewText)}>{previewText ? 'Editar texto' : 'Vista previa'}</button>
+        <button className="px-2 text-xs" onClick={() => { const rect = containerRef.current!.getBoundingClientRect(); const view = canvasViewBounds(data, rect.width, rect.height); setZoom(view.zoom); setPan(view.pan); }}>Ajustar vista</button>
         <div className="w-[1px] h-5 bg-obsidian-border mx-1" />
         <button
           onClick={() => setZoom((z) => Math.min(z * 1.15, 3))}
@@ -244,7 +233,7 @@ export const CanvasView: React.FC = () => {
       >
         <defs>
           <marker
-            id="arrow"
+            id={arrowId}
             viewBox="0 0 10 10"
             refX="6"
             refY="5"
@@ -252,7 +241,7 @@ export const CanvasView: React.FC = () => {
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
           </marker>
         </defs>
         {data.edges.map((edge) => {
@@ -260,27 +249,22 @@ export const CanvasView: React.FC = () => {
           const to = data.nodes.find((n) => n.id === edge.toNode);
           if (!from || !to) return null;
 
-          // Compute centers transformed to screen coords
-          const sx = (from.x + from.width) * zoom + pan.x;
-          const sy = (from.y + from.height / 2) * zoom + pan.y;
-          const tx = to.x * zoom + pan.x;
-          const ty = (to.y + to.height / 2) * zoom + pan.y;
-
-          const dx = tx - sx;
-          const cp1x = sx + dx * 0.5;
-          const cp1y = sy;
-          const cp2x = tx - dx * 0.5;
-          const cp2y = ty;
+          const geometry = edgeGeometry(from, to, edge);
+          const sx = geometry.start.x * zoom + pan.x, sy = geometry.start.y * zoom + pan.y;
+          const tx = geometry.end.x * zoom + pan.x, ty = geometry.end.y * zoom + pan.y;
+          const cp1x = geometry.control1.x * zoom + pan.x, cp1y = geometry.control1.y * zoom + pan.y;
+          const cp2x = geometry.control2.x * zoom + pan.x, cp2y = geometry.control2.y * zoom + pan.y;
 
           return (
             <g key={edge.id}>
               <path
                 d={`M ${sx} ${sy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tx} ${ty}`}
                 fill="none"
-                stroke="#10b981"
+                stroke={canvasColor(typeof edge.color === 'string' ? edge.color : undefined)}
                 strokeWidth={2 * zoom}
                 strokeOpacity={0.7}
-                markerEnd="url(#arrow)"
+                markerStart={edge.fromEnd === 'arrow' ? `url(#${arrowId})` : undefined}
+                markerEnd={edge.toEnd === 'none' ? undefined : `url(#${arrowId})`}
               />
               {edge.label && (
                 <text
@@ -307,17 +291,20 @@ export const CanvasView: React.FC = () => {
           transformOrigin: '0 0',
         }}
       >
-        {data.nodes.map((node) => (
+        {[...data.nodes].sort((a, b) => Number(b.type === 'group') - Number(a.type === 'group')).map((node) => (
           <div
             key={node.id}
+            onClick={() => setSelectedId(node.id)}
+            onFocusCapture={() => setSelectedId(node.id)}
             onMouseDown={(e) => handleMouseDownNode(e, node)}
             style={{
               position: 'absolute',
               left: `${node.x}px`,
               top: `${node.y}px`,
               width: `${node.width}px`,
-              minHeight: `${node.height}px`,
-              borderColor: node.color || '#27272a',
+              height: `${node.height}px`,
+              borderColor: canvasColor(node.color),
+              ...(node.type === 'group' ? { backgroundColor: 'rgba(24,24,27,0.35)', borderStyle: 'dashed' } : {}),
             }}
             className="pointer-events-auto bg-[#18181b]/95 border-2 rounded-xl shadow-xl backdrop-blur-sm flex flex-col overflow-hidden transition-shadow hover:shadow-2xl group cursor-move"
           >
@@ -330,14 +317,14 @@ export const CanvasView: React.FC = () => {
                   <Move size={12} className="text-obsidian-muted shrink-0" />
                 )}
                 <span className="truncate font-medium">
-                  {node.type === 'file' ? node.file : 'Nota'}
+                  {node.type === 'file' ? node.file : node.type === 'group' ? String(node.label || 'Grupo') : node.type === 'link' ? String(node.url || 'Enlace') : 'Nota'}
                 </span>
               </div>
               {node.type === 'file' && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (node.file) openNote(node.file);
+                    if (node.file && activePath) void navigateToLink(`${node.file}${node.subpath || ''}`, activePath);
                   }}
                   className="px-1.5 py-0.5 rounded bg-jade-600/30 text-jade-300 hover:bg-jade-600/50 text-[10px]"
                 >
@@ -348,7 +335,7 @@ export const CanvasView: React.FC = () => {
 
             {/* Node Content */}
             <div className="p-3 text-xs text-obsidian-text flex-1">
-              {node.type === 'text' ? (
+              {node.type === 'text' && previewText ? (<div className="h-full overflow-auto" onMouseDown={(event) => event.stopPropagation()}><MarkdownPreview content={node.text || ''} path={activePath || ''} /></div>) : node.type === 'text' ? (
                 <textarea
                   value={node.text || ''}
                   onChange={(e) => updateNodeText(node.id, e.target.value)}
@@ -356,7 +343,16 @@ export const CanvasView: React.FC = () => {
                   placeholder="Escribe Markdown aquí..."
                   className="w-full h-full min-h-[80px] bg-transparent outline-none resize-none text-obsidian-text text-xs leading-relaxed font-sans"
                 />
-              ) : (
+              ) : node.type === 'group' ? (
+                typeof node.background === 'string' && <div className="w-full h-full opacity-40" style={{
+                  backgroundImage: `url("/api/asset?path=${encodeURIComponent(node.background)}&source=${encodeURIComponent(activePath || '')}")`,
+                  backgroundSize: node.backgroundStyle === 'ratio' ? 'contain' : node.backgroundStyle === 'repeat' ? 'auto' : 'cover',
+                  backgroundRepeat: node.backgroundStyle === 'repeat' ? 'repeat' : 'no-repeat', backgroundPosition: 'center',
+                }} />
+              ) : node.type === 'link' ? (
+                <a href={typeof node.url === 'string' && /^https?:\/\//i.test(node.url) ? node.url : undefined}
+                  onMouseDown={(event) => event.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-jade-300 underline break-all">{String(node.url || '')}</a>
+              ) : node.type === 'file' && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(node.file || '') ? (<img draggable={false} alt={node.file} className="w-full h-full object-contain" src={`/api/asset?path=${encodeURIComponent(node.file!)}&source=${encodeURIComponent(activePath || '')}`} />) : (
                 <div className="text-obsidian-muted flex flex-col justify-center items-center h-full py-4 text-center">
                   <FileText size={24} className="mb-2 text-jade-400" />
                   <span className="font-semibold text-white">{node.file}</span>
