@@ -220,4 +220,4 @@ python3 scripts/test-desktop.py
 ## 👤 Autoría y licencia
 
 - **Autor principal:** **Walther Curo De La Cruz**
-- **Licencia:** Distribuido bajo la licencia **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)**. Copyright © 2026 Walther Curo De La Cruz.
+- **Licencia:** Distribuido bajo la licencia **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)**.
