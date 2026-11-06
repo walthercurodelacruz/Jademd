@@ -1,0 +1,68 @@
+{
+  "nodes": [
+    {
+      "id": "g",
+      "type": "group",
+      "x": 0,
+      "y": 0,
+      "width": 600,
+      "height": 400,
+      "label": "Grupo",
+      "color": "5",
+      "background": "Recursos/foto.png",
+      "backgroundStyle": "ratio",
+      "plugin": {
+        "locked": true
+      }
+    },
+    {
+      "id": "a",
+      "type": "text",
+      "x": 20,
+      "y": 50,
+      "width": 200,
+      "height": 150,
+      "text": "Original",
+      "custom": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "b",
+      "type": "file",
+      "x": 300,
+      "y": 50,
+      "width": 200,
+      "height": 150,
+      "file": "Notas/Tipada.md",
+      "subpath": "#Visible"
+    },
+    {
+      "id": "l",
+      "type": "link",
+      "x": 300,
+      "y": 230,
+      "width": 200,
+      "height": 100,
+      "url": "https://example.com"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e",
+      "fromNode": "a",
+      "fromSide": "bottom",
+      "fromEnd": "arrow",
+      "toNode": "b",
+      "toSide": "top",
+      "toEnd": "none",
+      "color": "2",
+      "label": "Conexión",
+      "plugin": "keep"
+    }
+  ],
+  "metadata": {
+    "future": true
+  }
+}

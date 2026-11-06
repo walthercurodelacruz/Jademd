@@ -1,0 +1,53 @@
+[
+  {
+    "file": "typed-crlf.md",
+    "path": "Notas/Tipada.md",
+    "title": "Nota tipada",
+    "tags": [
+      "alpha",
+      "español",
+      "proyecto/ñandú"
+    ],
+    "outlinks": [
+      "Destino#Sección",
+      "Embebida#^bloque",
+      "Carpeta/Otra nota.md#Título"
+    ],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Visible",
+        "line": 18
+      }
+    ],
+    "properties": {
+      "priority": 3,
+      "published": false,
+      "empty": null,
+      "created": "2026-11-05",
+      "nested": {
+        "owner": "Ana: Pérez",
+        "enabled": true
+      },
+      "summary": "Primera línea.\nSegunda línea.\n"
+    }
+  },
+  {
+    "file": "code-and-comments.md",
+    "path": "Code.md",
+    "title": "Code",
+    "tags": [],
+    "outlinks": [
+      "Real",
+      "./Otra.md"
+    ],
+    "headings": [
+      {
+        "level": 1,
+        "text": "Inicio",
+        "line": 1
+      }
+    ],
+    "properties": {}
+  }
+]
