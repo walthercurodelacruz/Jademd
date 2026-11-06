@@ -2,7 +2,7 @@
 
 **Fecha de corte:** 6 de noviembre de 2026
 **Versión actual:** `0.1.0` (Alfa en estabilización avanzada)
-**Licencia:** MIT (`LICENSE`)
+**Licencia:** GPL-3.0 (`LICENSE`)
 **Referencias complementarias:** [Matriz de paridad con Obsidian](docs/PARIDAD_OBSIDIAN.md) · [Lote 1: Estabilización](docs/CAMBIOS_ESTABILIZACION.md) · [Etapa 2: Compatibilidad](docs/COMPATIBILIDAD_DOCUMENTOS.md) · [Etapa 3: Trabajo cotidiano](docs/TRABAJO_COTIDIANO.md) · [Integridad y conocimiento](docs/INTEGRIDAD_CONOCIMIENTO.md) · [Productividad](docs/PRODUCTIVIDAD.md) · [Edición avanzada](docs/EDICION_AVANZADA.md) · [Escritorio Electron](docs/DESKTOP.md)
 
 ---

@@ -10,7 +10,7 @@ Diseñado en **Rust + React 19 + Electron** con enfoque en integridad de datos, 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](frontend/tsconfig.json)
 [![Electron](https://img.shields.io/badge/Electron-45-47848F?logo=electron&logoColor=white)](desktop/package.json)
 [![Tests](https://img.shields.io/badge/Tests-190_passing-2ea44f)](.github/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/Licencia-MIT-yellow.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/Licencia-GPLv3-blue.svg)](LICENSE)
 
 [Características](#-características-principales) · [Capturas](#-vista-general) · [Arquitectura](#-arquitectura) · [Inicio rápido](#-inicio-rápido) · [Seguridad e integridad](#-integridad-y-seguridad-de-datos) · [Documentación](#-documentación-técnica) · [Autoría](#-autoría-y-licencia)
 
@@ -219,5 +219,5 @@ python3 scripts/test-desktop.py
 
 ## 👤 Autoría y licencia
 
-- **Autor principal:** **Walther Curo De La Cruz** — [`curo.walther@gmail.com`](mailto:curo.walther@gmail.com)
-- **Licencia:** Distribuido bajo la licencia **[MIT](LICENSE)**. Copyright © 2026 Walther Curo De La Cruz.
+- **Autor principal:** **Walther Curo De La Cruz**
+- **Licencia:** Distribuido bajo la licencia **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)**. Copyright © 2026 Walther Curo De La Cruz.

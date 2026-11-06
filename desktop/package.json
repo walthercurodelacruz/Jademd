@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Gestor de conocimiento Markdown",
   "author": "Walther Curo De La Cruz <curo.walther@gmail.com>",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "main": "main.cjs",
   "scripts": {
