@@ -1,0 +1,60 @@
+{
+  "name": "jademd-desktop",
+  "productName": "JadeMD",
+  "version": "0.1.0",
+  "description": "Gestor de conocimiento Markdown",
+  "author": "Walther Curo De La Cruz <curo.walther@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "app.jademd.desktop",
+    "directories": {
+      "output": "../target/desktop-installers"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../target/release",
+        "to": "backend",
+        "filter": [
+          "jademd",
+          "jademd.exe"
+        ]
+      },
+      {
+        "from": "../frontend/dist",
+        "to": "backend/frontend/dist"
+      }
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "category": "Office"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
