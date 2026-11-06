@@ -36,13 +36,25 @@ async fn exclusive_creation_does_not_overwrite_even_with_concurrent_requests() {
 
 #[tokio::test]
 async fn rejects_symlinks_and_traversal_without_modifying_external_files() {
-    use std::os::unix::fs::symlink;
     let dir = tempdir().unwrap();
     let outside = tempdir().unwrap();
     std::fs::write(outside.path().join("Secret.md"), "outside").unwrap();
-    symlink(outside.path().join("Secret.md"), dir.path().join("Link.md")).unwrap();
-    symlink(outside.path(), dir.path().join("Directory")).unwrap();
-    symlink(dir.path(), dir.path().join("Cycle")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        symlink(outside.path().join("Secret.md"), dir.path().join("Link.md")).unwrap();
+        symlink(outside.path(), dir.path().join("Directory")).unwrap();
+        symlink(dir.path(), dir.path().join("Cycle")).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::os::windows::fs::symlink_file(
+            outside.path().join("Secret.md"),
+            dir.path().join("Link.md"),
+        );
+        let _ = std::os::windows::fs::symlink_dir(outside.path(), dir.path().join("Directory"));
+        let _ = std::os::windows::fs::symlink_dir(dir.path(), dir.path().join("Cycle"));
+    }
     let vault = Vault::new_local("Test", dir.path().to_str().unwrap()).unwrap();
     for path in [
         "Link.md",

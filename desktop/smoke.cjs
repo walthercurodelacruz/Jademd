@@ -21,7 +21,7 @@ const interval = setInterval(async () => {
     if (!state.selector || !state.bridge || state.research) throw new Error(JSON.stringify(state));
     console.log('SMOKE_READY', JSON.stringify(state));
     const screenshot = await win.webContents.capturePage();
-    fs.writeFileSync('/tmp/jademd-desktop-qa.png', screenshot.toPNG());
+    fs.writeFileSync(path.join(os.tmpdir(), 'jademd-desktop-qa.png'), screenshot.toPNG());
     if (scenario === 'vaults') {
       const one = path.join(profile, 'Vault One'); const two = path.join(profile, 'Vault Two');
       fs.mkdirSync(one); fs.mkdirSync(two); fs.writeFileSync(path.join(one, 'Inicio.md'), '# Prueba');

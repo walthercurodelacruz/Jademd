@@ -194,13 +194,7 @@ impl Vault {
                                 .to_string_lossy()
                                 .eq_ignore_ascii_case(&format!("{filename}.md"))
                     })
-                    .filter_map(|entry| {
-                        entry
-                            .path()
-                            .strip_prefix(&root)
-                            .ok()
-                            .map(|path| path.to_string_lossy().into_owned())
-                    })
+                    .filter_map(|entry| relative_vault_path(entry.path(), &root))
                     .collect::<Vec<_>>()
             })
             .await
@@ -450,12 +444,7 @@ impl Vault {
                             .extension()
                             .is_some_and(|s| s.eq_ignore_ascii_case("md"))
                 })
-                .filter_map(|e| {
-                    e.path()
-                        .strip_prefix(&root)
-                        .ok()
-                        .map(|p| p.to_string_lossy().into_owned())
-                })
+                .filter_map(|e| relative_vault_path(e.path(), &root))
                 .collect::<Vec<_>>()
         })
         .await
@@ -568,6 +557,14 @@ fn supported_file(path: &Path) -> bool {
     )
 }
 
+fn relative_vault_path(path: &Path, root: &Path) -> Option<String> {
+    let rel = path.strip_prefix(root).ok()?;
+    #[cfg(windows)]
+    return Some(rel.to_string_lossy().replace('\\', "/"));
+    #[cfg(not(windows))]
+    return Some(rel.to_string_lossy().into_owned());
+}
+
 fn build_local_tree(dir: &Path, root: &Path) -> FileNode {
     let name = dir
         .file_name()
@@ -575,10 +572,7 @@ fn build_local_tree(dir: &Path, root: &Path) -> FileNode {
         .unwrap_or("root")
         .to_string();
 
-    let rel_path = dir
-        .strip_prefix(root)
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "".to_string());
+    let rel_path = relative_vault_path(dir, root).unwrap_or_default();
 
     let mut children = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
@@ -600,10 +594,7 @@ fn build_local_tree(dir: &Path, root: &Path) -> FileNode {
             if path.is_dir() {
                 children.push(build_local_tree(&path, root));
             } else if supported_file(&path) {
-                let file_rel = path
-                    .strip_prefix(root)
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_default();
+                let file_rel = relative_vault_path(&path, root).unwrap_or_default();
                 let size = entry.metadata().map(|m| m.len()).ok();
                 let modified = entry
                     .metadata()

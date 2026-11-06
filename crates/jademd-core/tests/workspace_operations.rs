@@ -98,7 +98,10 @@ async fn collisions_invalid_paths_and_symlinks_never_overwrite_files() {
     ] {
         assert!(vault.move_entry("A.md", target).await.is_err(), "{target}");
     }
+    #[cfg(unix)]
     std::os::unix::fs::symlink(dir.path().join("A.md"), dir.path().join("Link.md")).unwrap();
+    #[cfg(windows)]
+    let _ = std::os::windows::fs::symlink_file(dir.path().join("A.md"), dir.path().join("Link.md"));
     assert!(vault.move_entry("Link.md", "Elsewhere.md").await.is_err());
     assert_eq!(vault.read_note("A.md").await.unwrap(), "original");
     assert_eq!(vault.read_note("B.md").await.unwrap(), "existing");
@@ -143,7 +146,6 @@ async fn trash_and_restore_preserve_a_folder_and_refuse_restore_collisions() {
 
 #[tokio::test]
 async fn a_failed_reference_write_rolls_back_the_move() {
-    use std::os::unix::fs::PermissionsExt;
     let dir = tempdir().unwrap();
     let vault = Vault::new_local("Rollback", dir.path().to_str().unwrap()).unwrap();
     vault.create_note("Old.md", "original").await.unwrap();
@@ -151,17 +153,40 @@ async fn a_failed_reference_write_rolls_back_the_move() {
         .create_note("ReadOnly/Refs.md", "[[Old]]")
         .await
         .unwrap();
-    std::fs::set_permissions(
-        dir.path().join("ReadOnly"),
-        std::fs::Permissions::from_mode(0o555),
-    )
-    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            dir.path().join("ReadOnly"),
+            std::fs::Permissions::from_mode(0o555),
+        )
+        .unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let refs_path = dir.path().join("ReadOnly").join("Refs.md");
+        let mut perms = std::fs::metadata(&refs_path).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&refs_path, perms).unwrap();
+    }
     let result = vault.move_entry("Old.md", "New.md").await;
-    std::fs::set_permissions(
-        dir.path().join("ReadOnly"),
-        std::fs::Permissions::from_mode(0o755),
-    )
-    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(
+            dir.path().join("ReadOnly"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+    }
+    #[cfg(windows)]
+    {
+        let refs_path = dir.path().join("ReadOnly").join("Refs.md");
+        let mut perms = std::fs::metadata(&refs_path).unwrap().permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&refs_path, perms).unwrap();
+    }
     assert!(result.is_err());
     assert_eq!(vault.read_note("Old.md").await.unwrap(), "original");
     assert!(vault.read_note("New.md").await.is_err());

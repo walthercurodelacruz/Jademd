@@ -18,6 +18,20 @@ pub struct FolderListing {
     folders: Vec<Folder>,
 }
 
+fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    let canonical = path.canonicalize()?;
+    #[cfg(windows)]
+    if let Some(s) = canonical.to_str() {
+        if let Some(stripped) = s
+            .strip_prefix(r"\\?\")
+            .filter(|rest| rest.as_bytes().get(1) == Some(&b':'))
+        {
+            return Ok(PathBuf::from(stripped));
+        }
+    }
+    Ok(canonical)
+}
+
 fn location(path: &Path, label: impl Into<String>) -> Option<Folder> {
     Some(Folder {
         label: label.into(),
@@ -75,7 +89,7 @@ fn locations() -> Vec<Folder> {
     roots
         .into_iter()
         .filter_map(|(path, label)| {
-            let path = path.canonicalize().ok()?;
+            let path = canonicalize(&path).ok()?;
             if !path.is_dir() || !seen.insert(path.clone()) {
                 return None;
             }
@@ -117,7 +131,7 @@ fn browse_at(path: Option<&str>, roots: Vec<Folder>) -> io::Result<FolderListing
     if !permitted_root(path) {
         return Err(denied());
     }
-    let current = path.canonicalize()?;
+    let current = canonicalize(path)?;
     if !permitted_root(&current) {
         return Err(denied());
     }
@@ -156,7 +170,7 @@ mod tests {
     #[test]
     fn follows_parent_from_a_shortcut_to_the_filesystem_root() {
         let temp = tempfile::tempdir().unwrap();
-        let disk = temp.path().canonicalize().unwrap();
+        let disk = canonicalize(temp.path()).unwrap();
         let home = disk.join("home");
         let personal = home.join("usuario");
         fs::create_dir_all(&personal).unwrap();
@@ -183,8 +197,8 @@ mod tests {
         fs::create_dir_all(&child).unwrap();
         fs::create_dir(root.join(".oculta")).unwrap();
         fs::write(root.join("nota.md"), "nota").unwrap();
-        let root = root.canonicalize().unwrap();
-        let child = child.canonicalize().unwrap();
+        let root = canonicalize(&root).unwrap();
+        let child = canonicalize(&child).unwrap();
         let roots = || vec![location(&root, "Montaje").unwrap()];
 
         #[cfg(unix)]

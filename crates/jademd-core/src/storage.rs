@@ -45,7 +45,12 @@ impl StorageManager {
         let root_path = canonical.to_str().ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::InvalidInput, "Ruta no UTF-8")
         })?;
-        let local_root = Arc::new(local_fs::open_root(&canonical)?);
+        #[cfg(windows)]
+        let root_path = root_path
+            .strip_prefix(r"\\?\")
+            .filter(|rest| rest.as_bytes().get(1) == Some(&b':'))
+            .unwrap_or(root_path);
+        let local_root = Arc::new(local_fs::open_root(std::path::Path::new(root_path))?);
         let builder = services::Fs::default().root(root_path);
         let op = Operator::new(builder)?;
         Ok(Self {
