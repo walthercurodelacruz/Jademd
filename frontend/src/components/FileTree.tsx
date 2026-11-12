@@ -41,6 +41,13 @@ const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }
     return { from: source.path, to };
   };
   const [contextPath, setContextPath] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    isDir: boolean;
+    name: string;
+  } | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     try {
       const saved = JSON.parse(storageKey ? localStorage.getItem(storageKey) || '{}' : '{}');
@@ -48,7 +55,40 @@ const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }
       return Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === 'boolean')) as Record<string, boolean>;
     } catch { return {}; }
   });
-  const { activePath, openNote, createNewNote, createNewFolder, deleteItem, setViewMode, setFileOperationPath } = useVaultStore();
+  const { activePath, openNote, createNewNote, createNewFolder, deleteItem, setViewMode, setFileOperationPath, openCreateModal } = useVaultStore();
+
+  React.useEffect(() => {
+    const onExpand = (e: Event) => {
+      const detail = (e as CustomEvent<{ path: string }>).detail;
+      if (!detail?.path) return;
+      const parts = detail.path.split('/').filter(Boolean);
+      setExpanded((prev) => {
+        const next = { ...prev };
+        let cur = '';
+        for (const part of parts) {
+          cur = cur ? `${cur}/${part}` : part;
+          next[cur] = true;
+        }
+        if (storageKey) {
+          try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* ignore */ }
+        }
+        return next;
+      });
+    };
+    window.addEventListener('jademd:expand-folder', onExpand);
+    return () => window.removeEventListener('jademd:expand-folder', onExpand);
+  }, [storageKey]);
+
+  React.useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    window.addEventListener('click', dismiss);
+    window.addEventListener('contextmenu', dismiss);
+    return () => {
+      window.removeEventListener('click', dismiss);
+      window.removeEventListener('contextmenu', dismiss);
+    };
+  }, [contextMenu]);
 
   const toggleExpand = (path: string, currentlyExpanded: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -60,34 +100,24 @@ const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }
     }
   };
 
-  const handleCreateNoteInFolder = (folderPath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const name = prompt('Nombre de la nueva nota (ej: Mi Nota):');
-    if (!name) return;
-    const cleanName = name.endsWith('.md') ? name : `${name}.md`;
-    const fullPath = folderPath ? `${folderPath.replace(/^\//, '')}/${cleanName}` : cleanName;
-    createNewNote(fullPath);
+  const handleCreateNoteInFolder = (folderPath: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    openCreateModal('note', folderPath);
   };
 
-  const handleCreateExcalidrawInFolder = (folderPath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const name = prompt('Nombre del dibujo Excalidraw (ej: Diagrama de Arquitectura):');
-    if (!name) return;
-    const cleanName = name.endsWith('.excalidraw.md')
-      ? name
-      : name.endsWith('.excalidraw')
-      ? name
-      : `${name}.excalidraw.md`;
-    const fullPath = folderPath ? `${folderPath.replace(/^\//, '')}/${cleanName}` : cleanName;
-    createNewNote(fullPath);
+  const handleCreateExcalidrawInFolder = (folderPath: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    openCreateModal('excalidraw', folderPath);
   };
 
-  const handleCreateSubFolder = (folderPath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const name = prompt('Nombre de la nueva carpeta:');
-    if (!name) return;
-    const fullPath = folderPath ? `${folderPath.replace(/^\//, '')}/${name}` : name;
-    createNewFolder(fullPath);
+  const handleCreateCanvasInFolder = (folderPath: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    openCreateModal('canvas', folderPath);
+  };
+
+  const handleCreateSubFolder = (folderPath: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    openCreateModal('folder', folderPath);
   };
 
   const renderNode = (item: FileNode, level = 0) => {
@@ -125,7 +155,18 @@ const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }
             setDropPath(null);
             if (destination) { setMoveError(''); setPendingMove(destination); }
           }}
-          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setContextPath(item.path); }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setContextPath(item.path);
+            setContextMenu({
+              x: event.clientX,
+              y: event.clientY,
+              path: item.path,
+              isDir: item.is_dir,
+              name: item.name,
+            });
+          }}
           onClick={(e) => {
             setContextPath(null);
             if (isDir) {
@@ -220,21 +261,159 @@ const VaultFileTree: React.FC<Props & { vaultId?: string }> = ({ node, vaultId }
     );
   };
 
-  return <><div className="space-y-0.5" onKeyDown={(event) => { if (event.key === 'Escape') setContextPath(null); }}>{renderNode(node)}</div>
-    {pendingMove && <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-6">
-      <section role="dialog" aria-modal="true" aria-label="Confirmar movimiento" className="bg-obsidian-card border border-obsidian-border rounded-xl p-5 w-full max-w-lg">
-        <h2 className="font-semibold mb-3">Confirmar movimiento</h2>
-        <p className="break-all">Origen: {pendingMove.from}</p>
-        <p className="break-all">Destino: {pendingMove.to}</p>
-        {moveError && <p role="alert" className="text-rose-300">{moveError}</p>}
-        <div className="flex justify-end gap-3 mt-4">
-          <button disabled={isLoading} onClick={() => setPendingMove(null)}>Cancelar</button>
-          <button disabled={isLoading} className="bg-jade-700 rounded px-4 py-2" onClick={async () => {
-            try { await moveItem(pendingMove.from, pendingMove.to); setPendingMove(null); }
-            catch (error) { setMoveError(error instanceof Error ? error.message : String(error)); }
-          }}>{isLoading ? 'Moviendo…' : 'Mover'}</button>
+  return (
+    <>
+      <div className="space-y-0.5" onKeyDown={(event) => { if (event.key === 'Escape') { setContextPath(null); setContextMenu(null); } }}>
+        {renderNode(node)}
+      </div>
+
+      {contextMenu && (
+        <div
+          role="menu"
+          aria-label="Acciones de archivo"
+          className="fixed z-[100] min-w-48 bg-obsidian-card border border-obsidian-border rounded-lg shadow-2xl py-1 text-xs text-obsidian-text select-none"
+          style={{
+            top: Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 240),
+            left: Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 220),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 border-b border-obsidian-border/60 text-3xs font-semibold text-obsidian-muted uppercase tracking-wider truncate max-w-xs">
+            {contextMenu.name.replace(/\.md$/, '')}
+          </div>
+          {contextMenu.isDir ? (
+            <>
+              <button
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-jade-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  handleCreateNoteInFolder(p);
+                }}
+              >
+                <FilePlus size={14} className="text-jade-400" />
+                <span>Nueva nota</span>
+              </button>
+              <button
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-jade-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  handleCreateSubFolder(p);
+                }}
+              >
+                <FolderPlus size={14} className="text-jade-400" />
+                <span>Nueva subcarpeta</span>
+              </button>
+              <button
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-purple-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  handleCreateExcalidrawInFolder(p);
+                }}
+              >
+                <Palette size={14} className="text-purple-400" />
+                <span>Nuevo dibujo Excalidraw</span>
+              </button>
+              <button
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-emerald-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  handleCreateCanvasInFolder(p);
+                }}
+              >
+                <LayoutGrid size={14} className="text-emerald-400" />
+                <span>Nuevo lienzo Canvas</span>
+              </button>
+            </>
+          ) : (
+            <button
+              role="menuitem"
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-jade-300 text-left transition cursor-pointer"
+              onClick={() => {
+                const p = contextMenu.path;
+                setContextMenu(null);
+                setViewMode('editor');
+                openNote(p);
+              }}
+            >
+              <FileText size={14} className="text-jade-400" />
+              <span>Abrir archivo</span>
+            </button>
+          )}
+          {contextMenu.path && contextMenu.path !== '/' && (
+            <>
+              <div className="my-1 border-t border-obsidian-border/60" />
+              <button
+                role="menuitem"
+                aria-label={`Renombrar o mover ${contextMenu.path}`}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-jade-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  setFileOperationPath(p);
+                }}
+              >
+                <Pencil size={14} />
+                <span>Renombrar o mover</span>
+              </button>
+              <button
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-obsidian-hover hover:text-rose-400 text-rose-300 text-left transition cursor-pointer"
+                onClick={() => {
+                  const p = contextMenu.path;
+                  setContextMenu(null);
+                  deleteItem(p);
+                }}
+              >
+                <Trash2 size={14} />
+                <span>Mover a la papelera</span>
+              </button>
+            </>
+          )}
         </div>
-      </section>
-    </div>}
-  </>;
+      )}
+
+      {pendingMove && (
+        <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirmar movimiento"
+            className="bg-obsidian-card border border-obsidian-border rounded-xl p-5 w-full max-w-lg"
+          >
+            <h2 className="font-semibold mb-3">Confirmar movimiento</h2>
+            <p className="break-all">Origen: {pendingMove.from}</p>
+            <p className="break-all">Destino: {pendingMove.to}</p>
+            {moveError && <p role="alert" className="text-rose-300">{moveError}</p>}
+            <div className="flex justify-end gap-3 mt-4">
+              <button disabled={isLoading} onClick={() => setPendingMove(null)}>
+                Cancelar
+              </button>
+              <button
+                disabled={isLoading}
+                className="bg-jade-700 rounded px-4 py-2"
+                onClick={async () => {
+                  try {
+                    await moveItem(pendingMove.from, pendingMove.to);
+                    setPendingMove(null);
+                  } catch (error) {
+                    setMoveError(error instanceof Error ? error.message : String(error));
+                  }
+                }}
+              >
+                {isLoading ? 'Moviendo…' : 'Mover'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </>
+  );
 };

@@ -195,3 +195,42 @@ async fn a_failed_reference_write_rolls_back_the_move() {
         "[[Old]]"
     );
 }
+
+#[tokio::test]
+async fn creates_nested_folders_and_includes_them_in_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = Vault::new_local("Test", dir.path().to_str().unwrap()).unwrap();
+    vault
+        .create_folder("Parent/Child/Grandchild")
+        .await
+        .unwrap();
+    assert!(dir.path().join("Parent/Child/Grandchild").is_dir());
+
+    let tree = vault.get_tree().await.unwrap();
+    let parent = tree
+        .children
+        .unwrap()
+        .into_iter()
+        .find(|n| n.name == "Parent")
+        .expect("Parent folder in tree");
+    assert_eq!(parent.path, "Parent");
+    assert!(parent.is_dir);
+
+    let child = parent
+        .children
+        .unwrap()
+        .into_iter()
+        .find(|n| n.name == "Child")
+        .expect("Child folder in tree");
+    assert_eq!(child.path, "Parent/Child");
+    assert!(child.is_dir);
+
+    let grandchild = child
+        .children
+        .unwrap()
+        .into_iter()
+        .find(|n| n.name == "Grandchild")
+        .expect("Grandchild folder in tree");
+    assert_eq!(grandchild.path, "Parent/Child/Grandchild");
+    assert!(grandchild.is_dir);
+}

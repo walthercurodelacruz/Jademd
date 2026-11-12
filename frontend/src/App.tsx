@@ -6,6 +6,7 @@ import { useProductivityStore } from './store/useProductivityStore';
 import { IntegrityPanel } from './components/IntegrityPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { FileOperations } from './components/FileOperations';
+import { CreateEntryModal } from './components/CreateEntryModal';
 import React, { useEffect, useState } from 'react';
 import { useVaultStore, isExcalidrawFile } from './store/useVaultStore';
 import { UnifiedSidebar } from './components/UnifiedSidebar';
@@ -64,6 +65,7 @@ export const App: React.FC = () => {
     setActiveInspectorTab,
     zenMode,
     toggleZenMode,
+    openCreateModal,
   } = useVaultStore();
 
   const shortcutSettings = useProductivityStore((state) => state.settings.shortcuts);
@@ -97,28 +99,15 @@ export const App: React.FC = () => {
   }, []);
 
   const handleCreateNoteRoot = () => {
-    const name = prompt('Nombre de la nueva nota (ej: Mi Nota):');
-    if (!name) return;
-    const cleanName = name.endsWith('.md') ? name : `${name}.md`;
-    createNewNote(cleanName);
+    openCreateModal('note');
   };
 
   const handleCreateCanvasRoot = () => {
-    const name = prompt('Nombre del nuevo lienzo visual (ej: Mapa Mental):');
-    if (!name) return;
-    const cleanName = name.endsWith('.canvas') ? name : `${name}.canvas`;
-    createNewNote(cleanName);
+    openCreateModal('canvas');
   };
 
   const handleCreateExcalidrawRoot = () => {
-    const name = prompt('Nombre del dibujo Excalidraw (ej: Diagrama de Red):');
-    if (!name) return;
-    const cleanName = name.endsWith('.excalidraw.md')
-      ? name
-      : name.endsWith('.excalidraw')
-      ? name
-      : `${name}.excalidraw.md`;
-    createNewNote(cleanName);
+    openCreateModal('excalidraw');
   };
 
   const handleToggleBacklinks = () => {
@@ -391,6 +380,7 @@ export const App: React.FC = () => {
 
       <CommandPalette />
       <FileOperations />
+      <CreateEntryModal />
       {/* Modals */}
       <SearchModal />
       <VaultModal open={vaultModalOpen || (!vault && !isLoading)} onClose={() => setVaultModalOpen(false)} />

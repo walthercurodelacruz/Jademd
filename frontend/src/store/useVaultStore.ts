@@ -29,6 +29,14 @@ export type SidebarPosition = 'right' | 'left';
 export type NoteMode = 'live' | 'source' | 'reading' | 'split-preview';
 export type InspectorTab = 'tree' | 'outline' | 'backlinks' | 'metadata';
 
+export type CreateEntryType = 'note' | 'folder' | 'canvas' | 'excalidraw' | 'base';
+
+export interface CreateModalState {
+  isOpen: boolean;
+  type: CreateEntryType;
+  targetFolder?: string;
+}
+
 export interface DocumentSnapshot {
   base?: string | null;
   content: string; metadata: NoteMetadata | null; backlinks: string[];
@@ -46,6 +54,9 @@ interface VaultState {
   splitTree: SplitTree;
   documents: Record<string, DocumentSnapshot>;
   commandPaletteOpen: boolean;
+  createModal: CreateModalState | null;
+  openCreateModal: (type: CreateEntryType, targetFolder?: string) => void;
+  closeCreateModal: () => void;
   fileOperationPath: string | null;
   trashOpen: boolean;
   trashEntries: TrashEntry[];
@@ -222,7 +233,7 @@ export const useVaultStore = create<VaultState>((set, get) => {
     get().focusPane(layout.activePaneId);
   };
   return {
-    ...initialWorkspace(), documents: {}, commandPaletteOpen: false, fileOperationPath: null, trashOpen: false, trashEntries: [],
+    ...initialWorkspace(), documents: {}, commandPaletteOpen: false, createModal: null, fileOperationPath: null, trashOpen: false, trashEntries: [],
     conflicts: {}, externalError: null,
     vault: null, tree: null, activePath: null, activeContent: '', activeMetadata: null, navigationAnchor: '', navigationNonce: 0,
     noteLoadState: 'idle', noteError: null, saveError: null, recoveryError: null, drafts: {},
@@ -576,23 +587,51 @@ export const useVaultStore = create<VaultState>((set, get) => {
       if (failed?.status === 'rejected') throw failed.reason;
     },
 
+    openCreateModal: (type: CreateEntryType, targetFolder?: string) => {
+      const cleanTarget = targetFolder ? targetFolder.trim().replace(/^[\/\\]+|[\/\\]+$/g, '') : '';
+      set({
+        createModal: {
+          isOpen: true,
+          type,
+          targetFolder: cleanTarget === '/' ? '' : cleanTarget,
+        },
+        noteError: null,
+      });
+    },
+
+    closeCreateModal: () => {
+      set({ createModal: null });
+    },
+
     createNewNote: async (path: string) => {
+      const cleanPath = path.trim().replace(/^[\/\\]+|[\/\\]+$/g, '');
+      if (!cleanPath) {
+        throw new Error('La ruta de la nota no puede estar vacía');
+      }
       try {
-        await api.createNote(path);
+        await api.createNote(cleanPath);
         await get().loadTree();
-        await get().openNote(path);
+        await get().openNote(cleanPath);
         await get().loadGraph();
       } catch (e) {
-        set({ noteError: `No se creó la nota: ${e instanceof Error ? e.message : String(e)}` });
+        const msg = `No se creó la nota: ${e instanceof Error ? e.message : String(e)}`;
+        set({ noteError: msg });
+        throw new Error(msg);
       }
     },
 
     createNewFolder: async (path: string) => {
+      const cleanPath = path.trim().replace(/^[\/\\]+|[\/\\]+$/g, '');
+      if (!cleanPath) {
+        throw new Error('La ruta de la carpeta no puede estar vacía');
+      }
       try {
-        await api.createFolder(path);
+        await api.createFolder(cleanPath);
         await get().loadTree();
       } catch (e) {
-        set({ noteError: `No se creó la carpeta: ${e instanceof Error ? e.message : String(e)}` });
+        const msg = `No se creó la carpeta: ${e instanceof Error ? e.message : String(e)}`;
+        set({ noteError: msg });
+        throw new Error(msg);
       }
     },
 

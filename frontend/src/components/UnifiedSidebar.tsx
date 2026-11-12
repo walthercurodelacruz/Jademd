@@ -47,37 +47,23 @@ export const UnifiedSidebar: React.FC<Props> = ({ width, onResize, onClose, onOp
     activeInspectorTab,
     setActiveInspectorTab,
     loadTree,
+    openCreateModal,
   } = useVaultStore();
 
   const handleCreateNote = () => {
-    const name = prompt('Nombre de la nueva nota (ej: Mi Nota):');
-    if (!name) return;
-    const cleanName = name.endsWith('.md') ? name : `${name}.md`;
-    createNewNote(cleanName);
+    openCreateModal('note');
   };
 
   const handleCreateFolder = () => {
-    const name = prompt('Nombre de la nueva carpeta:');
-    if (!name) return;
-    createNewFolder(name);
+    openCreateModal('folder');
   };
 
   const handleCreateCanvas = () => {
-    const name = prompt('Nombre del nuevo lienzo visual (ej: Mapa Mental):');
-    if (!name) return;
-    const cleanName = name.endsWith('.canvas') ? name : `${name}.canvas`;
-    createNewNote(cleanName);
+    openCreateModal('canvas');
   };
 
   const handleCreateExcalidraw = () => {
-    const name = prompt('Nombre del dibujo Excalidraw (ej: Diagrama de Red):');
-    if (!name) return;
-    const cleanName = name.endsWith('.excalidraw.md')
-      ? name
-      : name.endsWith('.excalidraw')
-      ? name
-      : `${name}.excalidraw.md`;
-    createNewNote(cleanName);
+    openCreateModal('excalidraw');
   };
 
   const findPathForTitle = (title: string, node: any): string | null => {

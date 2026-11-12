@@ -19,12 +19,8 @@ export function CommandPalette() {
       const tools = useProductivityStore.getState();
       switch (id) {
         case 'palette': current.setCommandPaletteOpen(!current.commandPaletteOpen); break;
-        case 'new': { const name = prompt('Nombre o ruta de la nota:'); if (name?.trim()) await current.createNewNote(name.trim().endsWith('.md') ? name.trim() : `${name.trim()}.md`); break; }
-        case 'newBase': {
-          const name = prompt('Nombre o ruta de la base:')?.trim();
-          if (name) await current.createNewNote(/\.base$/i.test(name) ? name : `${name}.base`);
-          break;
-        }
+        case 'new': current.openCreateModal('note'); break;
+        case 'newBase': current.openCreateModal('base'); break;
         case 'refreshVault': await current.refreshExternalChanges(true); break;
         case 'search': current.setSearchOpen(true); break;
         case 'splitRight': current.splitPane('horizontal'); break;

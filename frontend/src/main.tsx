@@ -6,6 +6,20 @@ import { useVaultStore } from './store/useVaultStore';
 
 (window as any).useVaultStore = useVaultStore;
 
+if (typeof window !== 'undefined') {
+  const origPrompt = window.prompt;
+  window.prompt = (message?: string, _default?: string) => {
+    try {
+      if (typeof origPrompt === 'function') {
+        return origPrompt(message, _default);
+      }
+    } catch {
+      console.warn('window.prompt no está soportado en este entorno');
+    }
+    return null;
+  };
+}
+
 interface Props {
   children: ReactNode;
 }

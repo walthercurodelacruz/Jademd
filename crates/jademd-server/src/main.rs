@@ -703,9 +703,18 @@ async fn create_folder(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateEntryRequest>,
 ) -> impl IntoResponse {
+    let clean = payload.path.trim().trim_matches('/');
+    if clean.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::err(
+                "El nombre de la carpeta no puede estar vacío",
+            )),
+        );
+    }
     let lock = state.vault.read().await;
     match &*lock {
-        Some(v) => match v.create_folder(&payload.path).await {
+        Some(v) => match v.create_folder(clean).await {
             Ok(_) => (StatusCode::CREATED, Json(ApiResponse::ok(true))),
             Err(e) => (storage_status(&e), Json(ApiResponse::err(e.to_string()))),
         },
@@ -1041,6 +1050,38 @@ mod tests {
                 assert!(!body.contains("original"));
             }
         }
+    }
+
+    #[tokio::test]
+    async fn creates_folders_and_nested_folders_over_api() {
+        let (app, token, _dir) = application().await;
+        for path in ["Projects", "Projects/Frontend", "/Notes/Work/"] {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/folder/create")
+                .header("host", "127.0.0.1:3030")
+                .header("authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .body(Body::from(format!(r#"{{"path":"{path}"}}"#)))
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::CREATED);
+        }
+
+        let request = Request::builder()
+            .uri("/vault/tree")
+            .header("host", "127.0.0.1:3030")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert!(response.status().is_success());
+        let bytes = to_bytes(response.into_body(), 1_000_000).await.unwrap();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(body.contains("Projects"), "{body}");
+        assert!(body.contains("Frontend"), "{body}");
+        assert!(body.contains("Notes"), "{body}");
+        assert!(body.contains("Work"), "{body}");
     }
 
     #[tokio::test]
