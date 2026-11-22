@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds } from '../utils/canvasDocument';
+import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId } from '../utils/canvasDocument';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -65,5 +65,15 @@ describe('Canvas editing operations', () => {
       expect((node.x+node.width)*view.zoom+view.pan.x).toBeLessThanOrEqual(961);
     }
     expect(canvasViewBounds({ nodes: [], edges: [] }, 1000, 700).zoom).toBe(1);
+  });
+  it('extracts YouTube video IDs from watch, short, embed, shorts and live URLs (JMD-BUG-004)', () => {
+    expect(extractYouTubeId('https://www.youtube.com/watch?v=WUN7p3D8FyY')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://www.youtube.com/watch?v=WUN7p3D8FyY&t=45s')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://youtu.be/WUN7p3D8FyY?si=abc')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://www.youtube.com/embed/WUN7p3D8FyY')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://www.youtube.com/shorts/WUN7p3D8FyY')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://m.youtube.com/live/WUN7p3D8FyY')).toBe('WUN7p3D8FyY');
+    expect(extractYouTubeId('https://example.com/watch?v=WUN7p3D8FyY')).toBeNull();
+    expect(extractYouTubeId('not a url')).toBeNull();
   });
 });

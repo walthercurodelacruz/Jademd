@@ -96,3 +96,31 @@ export function canvasViewBounds(data: CanvasData, width: number, height: number
   const zoom = Math.min(2, Math.max(0.1, Math.min((width-80)/Math.max(1,right-left), (height-80)/Math.max(1,bottom-top))));
   return { zoom, pan: { x: width/2-(left+right)/2*zoom, y: height/2-(top+bottom)/2*zoom } };
 }
+
+/**
+ * Extracts the 11-character YouTube video ID from standard watch, short, embed, shorts, or live URLs.
+ * (JMD-BUG-004)
+ */
+export function extractYouTubeId(rawUrl?: unknown): string | null {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) return null;
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const host = parsed.hostname.replace(/^(?:www\.|m\.)/i, '').toLowerCase();
+    let candidate: string | null = null;
+    if (host === 'youtu.be') {
+      candidate = parsed.pathname.split('/').filter(Boolean)[0] || null;
+    } else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      if (parsed.pathname === '/watch') {
+        candidate = parsed.searchParams.get('v');
+      } else {
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (parts.length >= 2 && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) {
+          candidate = parts[1];
+        }
+      }
+    }
+    return candidate && /^[a-zA-Z0-9_-]{11}$/.test(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
