@@ -34,16 +34,53 @@ interface SimLink {
 
 export const GraphView: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { vault, graphData, graphLoading, graphError, loadGraph, openNote, setViewMode } = useVaultStore();
+  const { vault, activePath, graphData, graphLoading, graphError, loadGraph, openNote, setViewMode } = useVaultStore();
+
+  const savedPrefs = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('jademd:graph-settings');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }, []);
 
   // Graph Filters and Controls
-  const [hideOrphans, setHideOrphans] = useState(false);
-  const [hideUnresolved, setHideUnresolved] = useState(false);
+  const [hideOrphans, setHideOrphans] = useState<boolean>(() => Boolean(savedPrefs.hideOrphans));
+  const [hideUnresolved, setHideUnresolved] = useState<boolean>(() => Boolean(savedPrefs.hideUnresolved));
+  const [localGraphOnly, setLocalGraphOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [labelMode, setLabelMode] = useState<'hubs' | 'hover' | 'always'>('hubs');
+  const [labelMode, setLabelMode] = useState<'hubs' | 'hover' | 'always'>(() =>
+    savedPrefs.labelMode === 'hover' || savedPrefs.labelMode === 'always' ? savedPrefs.labelMode : 'hubs'
+  );
+  const [maxLabelLength, setMaxLabelLength] = useState<number>(() =>
+    typeof savedPrefs.maxLabelLength === 'number' ? savedPrefs.maxLabelLength : 26
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [repulsionStrength, setRepulsionStrength] = useState(350);
-  const [linkDistance, setLinkDistance] = useState(90);
+  const [repulsionStrength, setRepulsionStrength] = useState<number>(() =>
+    typeof savedPrefs.repulsionStrength === 'number' ? savedPrefs.repulsionStrength : 350
+  );
+  const [linkDistance, setLinkDistance] = useState<number>(() =>
+    typeof savedPrefs.linkDistance === 'number' ? savedPrefs.linkDistance : 90
+  );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'jademd:graph-settings',
+        JSON.stringify({
+          hideOrphans,
+          hideUnresolved,
+          labelMode,
+          maxLabelLength,
+          repulsionStrength,
+          linkDistance,
+        })
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [hideOrphans, hideUnresolved, labelMode, maxLabelLength, repulsionStrength, linkDistance]);
 
   // Interaction State
   const [hoveredNode, setHoveredNode] = useState<SimNode | null>(null);
@@ -72,9 +109,20 @@ export const GraphView: React.FC = () => {
       degreeMap.set(l.target, (degreeMap.get(l.target) || 0) + 1);
     });
 
+    // Local graph neighborhood (active note + 1-hop neighbors)
+    const localNeighborhood = new Set<string>();
+    if (localGraphOnly && activePath) {
+      localNeighborhood.add(activePath);
+      graphData.links.forEach((l) => {
+        if (l.source === activePath) localNeighborhood.add(l.target);
+        if (l.target === activePath) localNeighborhood.add(l.source);
+      });
+    }
+
     let nodes = graphData.nodes.filter((n) => {
+      if (localGraphOnly && activePath && !localNeighborhood.has(n.id)) return false;
       const degree = degreeMap.get(n.id) || 0;
-      if (hideOrphans && degree === 0) return false;
+      if (hideOrphans && degree === 0 && n.id !== activePath) return false;
       if (hideUnresolved && n.group === 'unresolved') return false;
       return true;
     });
@@ -85,7 +133,7 @@ export const GraphView: React.FC = () => {
     );
 
     return { nodes, links, degreeMap };
-  }, [graphData, hideOrphans, hideUnresolved]);
+  }, [graphData, hideOrphans, hideUnresolved, localGraphOnly, activePath]);
 
   // Center and scale view to fit all nodes
   const fitToScreen = useCallback(() => {
@@ -141,6 +189,11 @@ export const GraphView: React.FC = () => {
     const centerY = height / 2;
 
     const nodeCount = filteredData.nodes.length;
+    const labelCounts = new Map<string, number>();
+    filteredData.nodes.forEach((n) => {
+      labelCounts.set(n.label, (labelCounts.get(n.label) || 0) + 1);
+    });
+
     const simNodes: SimNode[] = filteredData.nodes.map((n, idx) => {
       const degree = filteredData.degreeMap.get(n.id) || 0;
       // Sunflower phyllotaxis arrangement
@@ -150,9 +203,19 @@ export const GraphView: React.FC = () => {
 
       const baseRadius = Math.max(3.5, Math.min(15, 3 + Math.sqrt(degree) * 2.8));
 
+      // Disambiguate homonymous note titles (e.g. multiple "Índice del tema" across folders)
+      let displayLabel = n.label;
+      if ((labelCounts.get(n.label) || 0) > 1 && n.id.includes('/')) {
+        const parts = n.id.split('/');
+        const parentFolder = parts[parts.length - 2];
+        if (parentFolder) {
+          displayLabel = `${n.label} (${parentFolder})`;
+        }
+      }
+
       return {
         id: n.id,
-        label: n.label,
+        label: displayLabel,
         x: centerX + Math.cos(theta) * r,
         y: centerY + Math.sin(theta) * r,
         vx: 0,
@@ -369,13 +432,22 @@ export const GraphView: React.FC = () => {
       }
     }
 
-    // 2. Draw Nodes
+    // 2. Draw Nodes (First pass: circles only, so nodes never paint over labels)
+    const labelCandidates: {
+      node: SimNode;
+      nodeRadius: number;
+      isHighlight: boolean;
+      priority: number;
+    }[] = [];
+
+    const hubDegreeThreshold = nodes.length > 300 ? (scale < 0.9 ? 8 : 5) : 4;
+
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const isHovered = hoveredNode?.id === node.id;
       const isSelected = selectedNode?.id === node.id;
       const isConnected = connectedSet.has(node.id);
-      const isMatch = q && node.label.toLowerCase().includes(q);
+      const isMatch = Boolean(q && node.label.toLowerCase().includes(q));
 
       ctx.beginPath();
       const nodeRadius = node.radius * (isHovered || isSelected ? 1.35 : 1);
@@ -414,48 +486,115 @@ export const GraphView: React.FC = () => {
         ctx.stroke();
       }
 
-      // 3. Intelligent Label Rendering (NEVER show all 800 labels at once!)
+      // 3. Collect candidate labels
       let shouldShowLabel = false;
+      let priority = 0;
 
-      if (isHovered || isSelected) {
+      if (isHovered) {
         shouldShowLabel = true;
-      } else if (activeFocusNode && isConnected) {
+        priority = 100000;
+      } else if (isSelected) {
         shouldShowLabel = true;
+        priority = 90000;
       } else if (isMatch) {
         shouldShowLabel = true;
+        priority = 80000 + node.degree;
+      } else if (activeFocusNode && isConnected) {
+        shouldShowLabel = true;
+        priority = 70000 + node.degree;
+      } else if (activeFocusNode) {
+        // When focusing a node, hide unrelated background labels to reduce visual noise
+        shouldShowLabel = false;
       } else if (labelMode === 'always' && scale >= 0.7) {
         shouldShowLabel = true;
-      } else if (labelMode === 'hubs' && node.degree >= 4 && scale >= 0.6) {
+        priority = 1000 + node.degree;
+      } else if (labelMode === 'hubs' && node.degree >= hubDegreeThreshold && scale >= 0.55) {
         shouldShowLabel = true;
-      } else if (scale >= 1.4) {
+        priority = 5000 + node.degree;
+      } else if (labelMode !== 'hover' && scale >= 1.4) {
         shouldShowLabel = true;
+        priority = 1000 + node.degree;
       }
 
       if (shouldShowLabel) {
-        const isHighlight = isHovered || isSelected || isMatch;
-        const fontSize = Math.max(10, Math.min(14, 11 / Math.sqrt(scale)));
-        ctx.font = `${isHighlight ? 'bold ' : ''}${fontSize}px system-ui, sans-serif`;
-
-        const labelText = node.label;
-        const textX = node.x + nodeRadius + 5;
-        const textY = node.y + fontSize * 0.35;
-
-        // Draw pill backdrop for crisp readability
-        const textMetrics = ctx.measureText(labelText);
-        const padding = 3;
-        ctx.fillStyle = isHighlight
-          ? 'rgba(18, 18, 20, 0.92)'
-          : 'rgba(24, 24, 27, 0.75)';
-        ctx.fillRect(
-          textX - padding,
-          textY - fontSize + padding,
-          textMetrics.width + padding * 2,
-          fontSize + padding
-        );
-
-        ctx.fillStyle = isHighlight ? '#ffffff' : '#d4d4d8';
-        ctx.fillText(labelText, textX, textY);
+        labelCandidates.push({
+          node,
+          nodeRadius,
+          isHighlight: isHovered || isSelected || isMatch,
+          priority,
+        });
       }
+    }
+
+    // 4. Draw Labels in priority order with truncation and screen-space collision avoidance
+    labelCandidates.sort((a, b) => b.priority - a.priority);
+    const placedBoxes: { x1: number; y1: number; x2: number; y2: number }[] = [];
+
+    const truncateText = (text: string, limit: number) => {
+      if (text.length <= limit) return text;
+      return `${text.slice(0, Math.max(8, limit - 1)).trimEnd()}…`;
+    };
+
+    for (let i = 0; i < labelCandidates.length; i++) {
+      const { node, nodeRadius, isHighlight, priority } = labelCandidates[i];
+      const isPrimaryFocus = priority >= 90000;
+      const charLimit = isPrimaryFocus ? Math.max(maxLabelLength, 48) : maxLabelLength;
+      const labelText = truncateText(node.label, charLimit);
+
+      const fontSize = Math.max(10, Math.min(13.5, 10.5 / Math.sqrt(scale)));
+      ctx.font = `${isHighlight ? 'bold ' : ''}${fontSize}px system-ui, sans-serif`;
+
+      const textX = node.x + nodeRadius + 5 / scale;
+      const textY = node.y + fontSize * 0.35;
+
+      const measuredWidth =
+        ctx.measureText?.(labelText)?.width ?? labelText.length * fontSize * 0.56;
+      const padding = 3 / scale;
+      const rectX = textX - padding;
+      const rectY = textY - fontSize + padding;
+      const rectW = measuredWidth + padding * 2;
+      const rectH = fontSize + padding;
+
+      // Convert bounding box to screen space (pixels) for collision culling
+      const sx1 = rectX * scale + x;
+      const sy1 = rectY * scale + y;
+      const sx2 = (rectX + rectW) * scale + x;
+      const sy2 = (rectY + rectH) * scale + y;
+
+      // Skip off-screen labels
+      if (sx2 < 0 || sx1 > width || sy2 < 0 || sy1 > height) {
+        continue;
+      }
+
+      // Check collision against higher-priority placed labels (always draw hovered/selected)
+      if (!isPrimaryFocus) {
+        const margin = 4;
+        let collides = false;
+        for (let j = 0; j < placedBoxes.length; j++) {
+          const box = placedBoxes[j];
+          if (
+            sx1 - margin < box.x2 &&
+            sx2 + margin > box.x1 &&
+            sy1 - margin < box.y2 &&
+            sy2 + margin > box.y1
+          ) {
+            collides = true;
+            break;
+          }
+        }
+        if (collides) continue;
+      }
+
+      placedBoxes.push({ x1: sx1, y1: sy1, x2: sx2, y2: sy2 });
+
+      // Draw pill backdrop for crisp readability
+      ctx.fillStyle = isHighlight
+        ? 'rgba(18, 18, 20, 0.92)'
+        : 'rgba(24, 24, 27, 0.78)';
+      ctx.fillRect?.(rectX, rectY, rectW, rectH);
+
+      ctx.fillStyle = isHighlight ? '#ffffff' : '#d4d4d8';
+      ctx.fillText?.(labelText, textX, textY);
     }
 
     ctx.restore();
@@ -614,6 +753,26 @@ export const GraphView: React.FC = () => {
           <span>Ocultar Huérfanas</span>
         </button>
 
+        {/* Local Graph Toggle */}
+        {activePath && (
+          <button
+            onClick={() => {
+              setLocalGraphOnly(!localGraphOnly);
+              simulationAlpha.current = 0.8;
+            }}
+            aria-pressed={localGraphOnly}
+            title="Mostrar solo la nota activa y sus conexiones directas"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border backdrop-blur-md shadow-lg transition ${
+              localGraphOnly
+                ? 'bg-jade-950/80 text-jade-300 border-jade-600/50'
+                : 'bg-obsidian-card/90 text-obsidian-muted border-obsidian-border hover:text-white'
+            }`}
+          >
+            <Link2 size={13} className={localGraphOnly ? 'text-jade-400' : ''} />
+            <span>Grafo Local</span>
+          </button>
+        )}
+
         {/* Settings / Filters Drawer Toggle */}
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
@@ -675,6 +834,26 @@ export const GraphView: React.FC = () => {
                 Todas
               </button>
             </div>
+          </div>
+
+          {/* Max Label Length Slider */}
+          <div>
+            <div className="flex justify-between text-2xs mb-1 text-obsidian-muted">
+              <span>Longitud máx. de etiquetas</span>
+              <strong className="text-obsidian-text">{maxLabelLength} caract.</strong>
+            </div>
+            <input
+              type="range"
+              min="12"
+              max="60"
+              step="2"
+              value={maxLabelLength}
+              onChange={(e) => {
+                setMaxLabelLength(Number(e.target.value));
+                redrawRef.current = true;
+              }}
+              className="w-full accent-jade-500 cursor-pointer"
+            />
           </div>
 
           {/* Repulsion Force Slider */}
@@ -766,11 +945,16 @@ export const GraphView: React.FC = () => {
 
       {/* Active Node Floating Tooltip / Card */}
       {hoveredNode && (
-        <div className="absolute bottom-5 right-5 z-20 bg-obsidian-card/95 backdrop-blur-xl border border-jade-500/40 rounded-xl p-3.5 shadow-2xl text-xs max-w-xs animate-in fade-in duration-100 pointer-events-none">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-jade-400 shadow-sm shadow-jade-400/80" />
-            <strong className="text-obsidian-text truncate text-sm">{hoveredNode.label}</strong>
+        <div className="absolute bottom-5 right-5 z-20 bg-obsidian-card/95 backdrop-blur-xl border border-jade-500/40 rounded-xl p-3.5 shadow-2xl text-xs max-w-sm animate-in fade-in duration-100 pointer-events-none">
+          <div className="flex items-start gap-2 mb-1.5">
+            <span className="w-2.5 h-2.5 mt-1 shrink-0 rounded-full bg-jade-400 shadow-sm shadow-jade-400/80" />
+            <strong className="text-obsidian-text break-words leading-snug text-sm">{hoveredNode.label}</strong>
           </div>
+          {!hoveredNode.id.startsWith('unresolved:') && hoveredNode.id.includes('/') && (
+            <div className="text-3xs text-obsidian-muted/80 font-mono break-all mb-1.5">
+              {hoveredNode.id}
+            </div>
+          )}
           <div className="text-3xs text-obsidian-muted space-y-1">
             <div className="flex items-center gap-1.5">
               <Link2 size={11} className="text-jade-400" />
