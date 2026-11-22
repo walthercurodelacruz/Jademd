@@ -39,4 +39,9 @@ describe('Shared metadata fixtures', () => {
     const next = updateProperty(source, 'new', ['one', 'two']);
     expect(next).toBe('---\n{a: 1, b: "keep", "new": ["one","two"]} # comment\n---\nBody');
   });
+  it('ignores hex color codes, HTML highlight marks and pure numeric tokens when extracting tags', () => {
+    const raw = 'Texto con <mark style="background: #BBFABBA6;">verde</mark>, #ABF7F7A6, #FFB86CA6, #10b981, #FFFFFF, #1234 y etiquetas reales #excalidraw #seguridad/linux #web3 #h1.';
+    const meta = noteMetadata('Notas/Colores.md', raw, []);
+    expect(meta.tags).toEqual(['excalidraw', 'seguridad/linux', 'web3', 'h1']);
+  });
 });

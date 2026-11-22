@@ -39,6 +39,43 @@ fn tag_regex() -> &'static Regex {
     TAG_RE.get_or_init(|| Regex::new(r"(?:^|\s)#([\p{L}\p{N}_\-/]+)").unwrap())
 }
 
+fn is_valid_inline_tag(tag: &str, body: &str, match_start: usize, match_end: usize) -> bool {
+    if tag.is_empty()
+        || tag.starts_with('/')
+        || tag.ends_with('/')
+        || tag.contains("//")
+        || tag.chars().all(|c| c.is_ascii_digit())
+    {
+        return false;
+    }
+    // Reject CSS hex color codes (#RGB, #RGBA, #RRGGBB, #RRGGBBAA) such as Obsidian Highlightr colors (#BBFABBA6)
+    if matches!(tag.len(), 3 | 4 | 6 | 8)
+        && tag.chars().all(|c| c.is_ascii_hexdigit())
+        && (tag.chars().any(|c| c.is_ascii_digit())
+            || tag.chars().all(|c| c.is_ascii_uppercase())
+            || body[match_end..]
+                .chars()
+                .next()
+                .is_some_and(|c| matches!(c, ';' | '"' | '\'' | ')')))
+    {
+        return false;
+    }
+    // Reject #tokens inside an unclosed HTML tag on the same line (e.g. <mark style="background: #...">)
+    let line_start = body[..match_start].rfind('\n').map_or(0, |pos| pos + 1);
+    let prefix = &body[line_start..match_start];
+    if let Some(lt) = prefix.rfind('<') {
+        if !prefix[lt..].contains('>')
+            && prefix[lt + 1..]
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic())
+        {
+            return false;
+        }
+    }
+    true
+}
+
 fn heading_regex() -> &'static Regex {
     HEADING_RE.get_or_init(|| Regex::new(r"^ {0,3}(#{1,6})[ \t]+(.*)$").unwrap())
 }
@@ -142,9 +179,12 @@ pub fn parse_note_metadata(rel_path: &str, content: &str) -> NoteMetadata {
     // Parse inline tags #tag
     for cap in tag_regex().captures_iter(body) {
         if let Some(tag_match) = cap.get(1) {
-            let tag = tag_match.as_str().to_string();
-            if !meta.tags.contains(&tag) {
-                meta.tags.push(tag);
+            let tag = tag_match.as_str();
+            if is_valid_inline_tag(tag, body, tag_match.start(), tag_match.end()) {
+                let tag = tag.to_string();
+                if !meta.tags.contains(&tag) {
+                    meta.tags.push(tag);
+                }
             }
         }
     }
@@ -245,5 +285,19 @@ Y un enlace a otra nota legítima: [[Guía de Docker]].
         let meta = parse_note_metadata("docs/multimedia.md", text);
         // Sólo debe capturar la nota legítima, NO las imágenes, audios o PDFs
         assert_eq!(meta.outlinks, vec!["Guía de Docker"]);
+    }
+
+    #[test]
+    fn test_parse_ignores_hex_colors_html_marks_and_pure_numbers() {
+        let text = r#"# Nota con resaltados Highlightr
+Texto con <mark style="background: #BBFABBA6;">resaltado verde</mark> y <mark style="background: #FFB86CA6;">naranja</mark>.
+Colores sueltos: #ABF7F7A6 #ADCCFFA6 #D2B3FFA6 #FFB8EBA6 #10b981 #FFFFFF #1234.
+Etiquetas reales: #excalidraw #seguridad/linux #web3 #h1.
+"#;
+        let meta = parse_note_metadata("docs/colores.md", text);
+        assert_eq!(
+            meta.tags,
+            vec!["excalidraw", "seguridad/linux", "web3", "h1"]
+        );
     }
 }
