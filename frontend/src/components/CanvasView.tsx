@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useVaultStore } from '../store/useVaultStore';
 import { Plus, ZoomIn, ZoomOut, RotateCcw, FileText, Move, Play, ExternalLink, Globe } from 'lucide-react';
 
-import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId } from '../utils/canvasDocument';
+import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget } from '../utils/canvasDocument';
 
 export const CanvasView: React.FC = () => {
   const { activePath, activeContent, queueNoteSave, openNote, navigateToLink, setNoteMode } = usePaneState();
@@ -348,7 +348,7 @@ export const CanvasView: React.FC = () => {
             </div>
 
             {/* Node Content */}
-            <div className={`${node.type === 'link' ? 'p-0' : 'p-3'} text-xs text-obsidian-text flex-1 flex flex-col min-h-0 overflow-hidden`}>
+            <div className={`${node.type === 'link' || (node.type === 'file' && isPdfTarget(node.file)) ? 'p-0' : 'p-3'} text-xs text-obsidian-text flex-1 flex flex-col min-h-0 overflow-hidden`}>
               {node.type === 'text' && previewText ? (<div className="h-full overflow-auto" onMouseDown={(event) => event.stopPropagation()}><MarkdownPreview content={node.text || ''} path={activePath || ''} /></div>) : node.type === 'text' ? (
                 <textarea
                   value={node.text || ''}
@@ -421,6 +421,32 @@ export const CanvasView: React.FC = () => {
                     </div>
                   );
                 }
+                if (isPdfTarget(rawUrl)) {
+                  return (
+                    <div
+                      className="w-full h-full flex flex-col bg-zinc-900 overflow-hidden"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <iframe
+                        title={rawUrl}
+                        src={rawUrl}
+                        className="w-full flex-1 border-0 bg-zinc-900"
+                      />
+                      <div className="px-3 py-1.5 bg-[#18181b] border-t border-obsidian-border/50 flex items-center justify-between gap-2 shrink-0">
+                        <a
+                          href={rawUrl || undefined}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-jade-300 hover:text-jade-200 underline truncate text-[11px] flex items-center gap-1"
+                        >
+                          <span className="truncate">{rawUrl}</span>
+                          <ExternalLink size={11} className="shrink-0" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div className="p-3 h-full flex flex-col justify-between">
                     <a
@@ -435,7 +461,18 @@ export const CanvasView: React.FC = () => {
                     </a>
                   </div>
                 );
-              })() : node.type === 'file' && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(node.file || '') ? (<img draggable={false} alt={node.file} className="w-full h-full object-contain" src={`/api/asset?path=${encodeURIComponent(node.file!)}&source=${encodeURIComponent(activePath || '')}`} />) : (
+              })() : node.type === 'file' && isPdfTarget(node.file) ? (
+                <div
+                  className="w-full h-full flex flex-col bg-zinc-900 overflow-hidden"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <iframe
+                    title={String(node.file)}
+                    src={`/api/asset?path=${encodeURIComponent(String(node.file))}&source=${encodeURIComponent(activePath || '')}${typeof node.subpath === 'string' ? node.subpath : ''}`}
+                    className="w-full flex-1 border-0 bg-zinc-900"
+                  />
+                </div>
+              ) : node.type === 'file' && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(node.file || '') ? (<img draggable={false} alt={node.file} className="w-full h-full object-contain" src={`/api/asset?path=${encodeURIComponent(node.file!)}&source=${encodeURIComponent(activePath || '')}`} />) : (
                 <div className="text-obsidian-muted flex flex-col justify-center items-center h-full py-4 text-center">
                   <FileText size={24} className="mb-2 text-jade-400" />
                   <span className="font-semibold text-white">{node.file}</span>

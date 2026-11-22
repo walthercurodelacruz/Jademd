@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId } from '../utils/canvasDocument';
+import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget } from '../utils/canvasDocument';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -75,5 +75,12 @@ describe('Canvas editing operations', () => {
     expect(extractYouTubeId('https://m.youtube.com/live/WUN7p3D8FyY')).toBe('WUN7p3D8FyY');
     expect(extractYouTubeId('https://example.com/watch?v=WUN7p3D8FyY')).toBeNull();
     expect(extractYouTubeId('not a url')).toBeNull();
+  });
+  it('detects PDF targets for both local vault paths and external URLs (JMD-BUG-005)', () => {
+    expect(isPdfTarget('Recursos Generales/Pdfs/sare_vn.pdf')).toBe(true);
+    expect(isPdfTarget('https://dpetersanderson.github.io/fp288-vollmar.pdf')).toBe(true);
+    expect(isPdfTarget('https://example.com/doc.PDF?dl=1#page=2')).toBe(true);
+    expect(isPdfTarget('Notas/Resumen.md')).toBe(false);
+    expect(isPdfTarget('https://www.youtube.com/watch?v=WUN7p3D8FyY')).toBe(false);
   });
 });

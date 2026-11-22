@@ -124,3 +124,13 @@ export function extractYouTubeId(rawUrl?: unknown): string | null {
     return null;
   }
 }
+
+/**
+ * Checks whether a vault file path or HTTP(S) URL points to a PDF document.
+ * (JMD-BUG-005)
+ */
+export function isPdfTarget(rawTarget?: unknown): boolean {
+  if (typeof rawTarget !== 'string' || !rawTarget.trim()) return false;
+  const clean = rawTarget.trim().split(/[?#]/)[0];
+  return /\.pdf$/i.test(clean);
+}

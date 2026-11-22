@@ -917,16 +917,17 @@ async fn get_asset(
     match vault.read_linked_bytes(&query.path, &query.source).await {
         Ok(bytes) => {
             let mime = mime_guess::from_path(&query.path).first_or_octet_stream();
+            let csp = if mime.essence_str() == "application/pdf" {
+                "default-src 'self' blob: data:; object-src 'self' blob: data:; frame-ancestors 'self'"
+            } else {
+                "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+            };
             (
                 StatusCode::OK,
                 [
                     (header::CONTENT_TYPE, mime.as_ref().to_string()),
                     (header::CACHE_CONTROL, "no-store".to_string()),
-                    (
-                        header::CONTENT_SECURITY_POLICY,
-                        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:"
-                            .to_string(),
-                    ),
+                    (header::CONTENT_SECURITY_POLICY, csp.to_string()),
                 ],
                 bytes,
             )
