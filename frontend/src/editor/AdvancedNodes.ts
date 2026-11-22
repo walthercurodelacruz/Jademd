@@ -25,12 +25,31 @@ export const MathInline = Node.create({
       if (preview instanceof HTMLButtonElement) { preview.type = 'button'; preview.title = 'Editar fórmula'; preview.setAttribute('aria-label', 'Editar fórmula'); }
       dom.appendChild(preview); renderAdvanced(preview, 'math', advancedExpression('math', node.attrs.raw));
       preview.addEventListener('click', (event) => {
-        if (!this.editor.isEditable) return; event.preventDefault(); event.stopPropagation();
-        const value = prompt('Fórmula LaTeX (sin delimitadores $):', advancedExpression('math', node.attrs.raw));
-        if (value === null || value.includes('\n')) return;
-        const pos = getPos(); if (typeof pos === 'number') this.editor.view.dispatch(this.editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, raw: `$${value}$` }));
+        if (!this.editor.isEditable || dom.querySelector('input')) return;
+        event.preventDefault(); event.stopPropagation();
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.setAttribute('aria-label', 'Fórmula LaTeX inline');
+        input.value = advancedExpression('math', node.attrs.raw);
+        input.className = 'inline-block bg-obsidian-bg border border-jade-500/70 rounded px-2 py-0.5 mx-1 font-mono text-xs text-obsidian-text';
+        const commit = () => {
+          const value = input.value.trim();
+          input.remove();
+          if (!value || value.includes('\n')) return;
+          const pos = getPos();
+          if (typeof pos === 'number') {
+            this.editor.view.dispatch(this.editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, raw: `$${value}$` }));
+          }
+        };
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); input.remove(); }
+        });
+        input.addEventListener('blur', commit);
+        dom.appendChild(input);
+        input.focus();
       });
-      return { dom, stopEvent: () => true };
+      return { dom, stopEvent: (event) => !!(event.target as HTMLElement).closest('button,input') };
     };
   },
 });
