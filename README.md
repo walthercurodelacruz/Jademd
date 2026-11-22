@@ -114,8 +114,8 @@ Jademd/
 
 - **Sistema operativo:**
   - **Linux** con kernel `5.6+` (utiliza `openat2` para el confinamiento estricto de operaciones locales sin seguimiento de symlinks).
-  - **Windows** (soportado para compilación e instalador de escritorio; validado principalmente en Linux).
-- **Rust:** Toolchain `stable` con Cargo (validado con Rust `1.99.1`).
+  - **Windows 10/11 x64** (compilación e instalador de escritorio verificados; pruebas automatizadas validadas principalmente en Linux). Requiere además **Visual Studio Build Tools** con la carga *Desarrollo para el escritorio con C++*. Consulta la **[guía de Windows](docs/WINDOWS.md)**.
+- **Rust:** Toolchain `stable` instalado con [rustup](https://rustup.rs) (validado con Rust `1.99.1` en Linux y `1.100.0` en Windows, host `x86_64-pc-windows-msvc`).
 - **Node.js:** `^22.12.0`, `^24.0.0` o `>=26.0.0` (el archivo `frontend/.nvmrc` selecciona Node `22`) y `npm`.
 
 ---
@@ -154,11 +154,20 @@ npm run dev
 # Generar paquetes para Linux (.deb y .AppImage)
 scripts/package-installers.sh linux
 
-# Generar instalador NSIS (.exe) para Windows
+# Generar instalador NSIS (.exe) para Windows (desde Git Bash, requiere makensis)
 scripts/package-installers.sh windows /ruta/al/backend/jademd.exe
 ```
 
-Los artefactos se generan en `target/desktop-installers/` e integran Electron, el binario de Rust compilado en modo `release` y la interfaz estática.
+En Windows, sin Bash ni NSIS instalados, desde PowerShell:
+
+```powershell
+cargo build --locked --release --bin jademd
+npm.cmd --prefix frontend ci; npm.cmd --prefix frontend run build
+npm.cmd --prefix desktop ci
+cd desktop; npx.cmd electron-builder --win nsis --x64 --config.win.signAndEditExecutable=false
+```
+
+Los artefactos se generan en `target/desktop-installers/` e integran Electron, el binario de Rust compilado en modo `release` y la interfaz estática. La guía completa de requisitos, pruebas y solución de problemas en Windows está en **[docs/WINDOWS.md](docs/WINDOWS.md)**.
 
 ---
 
@@ -214,6 +223,7 @@ python3 scripts/test-desktop.py
 - ⚙️ **[Productividad y Atajos](docs/PRODUCTIVIDAD.md):** Notas diarias, plantillas, marcadores, jerarquía de etiquetas y gestor de atajos.
 - 🧮 **[Edición Avanzada y Exportación](docs/EDICION_AVANZADA.md):** KaTeX, Mermaid, notas al pie, exportación HTML/PDF y mejoras en Canvas y Excalidraw.
 - 🖥️ **[Arquitectura Desktop (Electron)](docs/DESKTOP.md):** Gestión del proceso backend por tubería, aislamiento IPC y empaquetado de instaladores.
+- 🪟 **[Guía de Windows](docs/WINDOWS.md):** Requisitos (Build Tools, Rust MSVC, Node), compilación, pruebas, generación del instalador `.exe` y solución de problemas.
 
 ---
 

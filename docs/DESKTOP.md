@@ -20,7 +20,7 @@ Las pruebas usan un perfil temporal sin bóvedas. En la segunda se termina el pr
 
 ## Distribución
 
-`desktop/package.json` configura electron-builder para deb, AppImage y NSIS. Los nuevos paquetes salen en `target/desktop-installers`, separados de los instaladores anteriores que abrían el navegador. La validación de Linux no sustituye pruebas de instalación y cierre en Windows.
+`desktop/package.json` configura electron-builder para deb, AppImage y NSIS. Los nuevos paquetes salen en `target/desktop-installers`, separados de los instaladores anteriores que abrían el navegador. La validación de Linux no sustituye pruebas de instalación y cierre en Windows. Los requisitos y pasos para compilar, probar y generar el instalador en Windows están en [WINDOWS.md](WINDOWS.md).
 
 La auditoría inicial de dependencias de desarrollo detectó avisos moderados en la cadena del empaquetador (`minimatch`); no son dependencias de ejecución de la aplicación. Debe actualizarse el empaquetador cuando incorpore la corrección compatible, sin aplicar un downgrade automático de la herramienta.
 
