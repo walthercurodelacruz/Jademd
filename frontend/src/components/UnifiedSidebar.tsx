@@ -48,6 +48,8 @@ export const UnifiedSidebar: React.FC<Props> = ({ width, onResize, onClose, onOp
     setActiveInspectorTab,
     loadTree,
     openCreateModal,
+    performSearch,
+    setSearchOpen,
   } = useVaultStore();
 
   const handleCreateNote = () => {
@@ -350,17 +352,23 @@ export const UnifiedSidebar: React.FC<Props> = ({ width, onResize, onClose, onOp
                 {backlinks.map((link) => (
                   <div
                     key={link}
+                    title={link}
                     onClick={() => {
-                      const p = findPathForTitle(link, tree);
-                      if (p) openNote(p);
+                      const p = findPathForTitle(link, tree) || link;
+                      void openNote(p);
                     }}
                     className="flex items-center justify-between p-2 rounded-lg bg-obsidian-card/40 hover:bg-obsidian-hover border border-obsidian-border/40 cursor-pointer text-obsidian-text hover:text-jade-300 transition"
                   >
-                    <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center gap-2 truncate min-w-0">
                       <FileText size={13} className="text-jade-500 flex-shrink-0" />
-                      <span className="truncate text-xs">{link}</span>
+                      <div className="truncate">
+                        <div className="truncate text-xs">{link.split('/').pop()?.replace(/\.md$/, '') || link}</div>
+                        {link.includes('/') && (
+                          <div className="truncate text-3xs text-obsidian-muted">{link}</div>
+                        )}
+                      </div>
                     </div>
-                    <ExternalLink size={11} className="text-obsidian-muted flex-shrink-0" />
+                    <ExternalLink size={11} className="text-obsidian-muted flex-shrink-0 ml-1" />
                   </div>
                 ))}
               </div>
@@ -404,12 +412,18 @@ export const UnifiedSidebar: React.FC<Props> = ({ width, onResize, onClose, onOp
             {activeMetadata?.tags && activeMetadata.tags.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {activeMetadata.tags.map((tag) => (
-                  <span
+                  <button
                     key={tag}
-                    className="px-2 py-0.5 rounded-full bg-jade-950/80 text-jade-300 border border-jade-800/50 text-2xs font-mono"
+                    type="button"
+                    title={`Buscar notas con #${tag}`}
+                    onClick={() => {
+                      void performSearch(`tag:"${tag.replaceAll('"', '')}"`);
+                      setSearchOpen(true);
+                    }}
+                    className="px-2 py-0.5 rounded-full bg-jade-950/80 hover:bg-jade-900 text-jade-300 border border-jade-800/50 hover:border-jade-500/60 text-2xs font-mono transition cursor-pointer"
                   >
                     #{tag}
-                  </span>
+                  </button>
                 ))}
               </div>
             ) : (

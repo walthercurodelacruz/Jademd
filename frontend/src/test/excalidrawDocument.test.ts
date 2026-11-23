@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { parseScene, serializeScene, sceneFingerprint } from '../utils/excalidrawDocument';
+import { parseScene, serializeScene, sceneFingerprint, readExcalidrawViewport, writeExcalidrawViewport } from '../utils/excalidrawDocument';
 
 describe('Excalidraw compatibility and safe parsing', () => {
   it('preserves CRLF wrapper text and unknown scene fields through edits', () => {
@@ -46,4 +47,15 @@ it('detects external drawing edits even when an external editor did not incremen
   const original = [{ id: 'a', x: 0, y: 0, text: 'Original', version: 1, versionNonce: 7 }];
   expect(sceneFingerprint([{ ...original[0], x: 100 }], {}, {})).not.toBe(sceneFingerprint(original, {}, {}));
   expect(sceneFingerprint([{ ...original[0], text: 'External' }], {}, {})).not.toBe(sceneFingerprint(original, {}, {}));
+});
+
+it('persists and restores Excalidraw viewport position without modifying the scene file (JMD-BUG-006)', () => {
+  localStorage.clear();
+  writeExcalidrawViewport('vault-1', 'Mapa General.md', { scrollX: -245.5, scrollY: 120, zoom: { value: 1.35 } });
+  expect(readExcalidrawViewport('vault-1', 'Mapa General.md')).toEqual({
+    scrollX: -245.5,
+    scrollY: 120,
+    zoom: { value: 1.35 },
+  });
+  expect(readExcalidrawViewport('vault-1', 'Otra.md')).toBeNull();
 });

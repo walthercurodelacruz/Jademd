@@ -1,27 +1,58 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useVaultStore } from '../store/useVaultStore';
 import { FileText, Search, X } from 'lucide-react';
 
 export const SearchModal: React.FC = () => {
   const { searchOpen, setSearchOpen, searchQuery, performSearch, searchResults, searchError, openNote } = useVaultStore();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
     if (searchOpen) {
+      setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [searchOpen]);
 
   useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchResults]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && searchOpen) {
+      if (!searchOpen) return;
+      if (e.key === 'Escape') {
         setSearchOpen(false);
+      } else if (e.key === 'ArrowDown' && searchResults.length > 0) {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const next = (prev + 1) % searchResults.length;
+          const el = listRef.current?.querySelectorAll<HTMLElement>('[data-search-result]')[next];
+          el?.scrollIntoView?.({ block: 'nearest' });
+          return next;
+        });
+      } else if (e.key === 'ArrowUp' && searchResults.length > 0) {
+        e.preventDefault();
+        setSelectedIndex((prev) => {
+          const next = (prev - 1 + searchResults.length) % searchResults.length;
+          const el = listRef.current?.querySelectorAll<HTMLElement>('[data-search-result]')[next];
+          el?.scrollIntoView?.({ block: 'nearest' });
+          return next;
+        });
+      } else if (e.key === 'Enter' && searchResults.length > 0) {
+        const target = searchResults[selectedIndex] || searchResults[0];
+        if (target) {
+          e.preventDefault();
+          void openNote(target.path);
+          setSearchOpen(false);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen]);
+  }, [searchOpen, searchResults, selectedIndex, openNote, setSearchOpen]);
 
   if (!searchOpen) return null;
 
@@ -53,10 +84,13 @@ export const SearchModal: React.FC = () => {
           </button>
         </div>
 
-        <p className="px-4 py-2 text-xs text-obsidian-muted">Combina: texto tag:trabajo path:Notas [estado:activo] -tag:archivo. Usa comillas para frases. Máximo 200 notas.</p>
+        <div className="px-4 py-2 text-xs text-obsidian-muted flex items-center justify-between gap-2 border-b border-obsidian-border/40">
+          <span>Combina: texto tag:trabajo path:Notas [estado:activo] -tag:archivo. Usa comillas para frases. Máximo 200 notas.</span>
+          <span className="text-3xs font-mono text-obsidian-muted/70 shrink-0 hidden sm:inline">↑↓ navegar · Enter abrir</span>
+        </div>
         {searchError && <p role="alert" className="px-4 py-2 text-sm text-rose-300">{searchError}</p>}
         {/* Results List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-1">
           {searchResults.length === 0 && searchQuery.trim() !== '' ? (
             <div className="text-center py-12 text-obsidian-muted text-sm">
               No se encontraron notas que coincidan con "{searchQuery}"
@@ -66,16 +100,22 @@ export const SearchModal: React.FC = () => {
               Escribe el nombre de un archivo o contenido para buscar en toda la bóveda...
             </div>
           ) : (
-            searchResults.map((res) => (
+            searchResults.map((res, idx) => (
               <div
                 key={res.path}
+                data-search-result={res.path}
+                onMouseEnter={() => setSelectedIndex(idx)}
                 onClick={() => {
                   openNote(res.path);
                   setSearchOpen(false);
                 }}
-                className="p-2.5 rounded-lg hover:bg-obsidian-hover cursor-pointer transition border border-transparent hover:border-obsidian-border group"
+                className={`p-2.5 rounded-lg cursor-pointer transition border group ${
+                  idx === selectedIndex
+                    ? 'bg-obsidian-hover border-jade-500/50'
+                    : 'hover:bg-obsidian-hover border-transparent hover:border-obsidian-border'
+                }`}
               >
-                <div className="flex items-center gap-2 text-sm font-medium text-obsidian-text group-hover:text-jade-300">
+                <div className={`flex items-center gap-2 text-sm font-medium ${idx === selectedIndex ? 'text-jade-300' : 'text-obsidian-text group-hover:text-jade-300'}`}>
                   <FileText size={15} className="text-jade-400" />
                   <span>{res.title}</span>
                   <span className="text-xs text-obsidian-muted font-normal ml-auto truncate max-w-[200px]">

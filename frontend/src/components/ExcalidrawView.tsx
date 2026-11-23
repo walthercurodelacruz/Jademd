@@ -2,7 +2,7 @@ import { usePaneState } from '../store/PaneContext';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Excalidraw, exportToBlob, exportToSvg } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
-import { parseScene, serializeScene as serializeDocument, sceneFingerprint } from '../utils/excalidrawDocument';
+import { parseScene, serializeScene as serializeDocument, sceneFingerprint, readExcalidrawViewport, writeExcalidrawViewport } from '../utils/excalidrawDocument';
 import { useVaultStore } from '../store/useVaultStore';
 import { Download, Copy, Code, Eye, Check, RefreshCw } from 'lucide-react';
 
@@ -43,7 +43,8 @@ class ExcalidrawErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
 }
 
 export const ExcalidrawView: React.FC = () => {
-  const { activePath, activeContent, queueNoteSave, isSaving, drafts, saveError, setNoteMode } = usePaneState();
+  const { activePath, activeContent, queueNoteSave, isSaving, drafts, vault } = usePaneState();
+  const vaultId = vault?.id;
   const [initialData, setInitialData] = useState<any>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const savingStatus = isSaving || (activePath && Object.hasOwn(drafts, activePath)) ? 'saving' : 'saved';
@@ -63,9 +64,11 @@ export const ExcalidrawView: React.FC = () => {
   const isMarkdownFormat = activePath ? activePath.endsWith('.md') : false;
   // Parse once per mounted document; a failed parse never creates a replacement scene.
   useEffect(() => {
+    if (!activePath) return;
     try {
       const scene = parseScene(activeContent, isMarkdownFormat);
-      const appState = { ...scene.appState, theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
+      const savedViewport = readExcalidrawViewport(vaultId, activePath);
+      const appState = { ...scene.appState, ...(savedViewport || {}), theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
       const files = scene.files || {};
       savedFingerprintRef.current = sceneFingerprint(scene.elements, appState, files);
       latestSceneRef.current = { elements: scene.elements, appState, files };
@@ -76,14 +79,15 @@ export const ExcalidrawView: React.FC = () => {
       setIsLoaded(false);
       setParseError(e instanceof Error ? e.message : String(e));
     }
-  }, [activePath]);
+  }, [activePath, vaultId]);
 
   useEffect(() => {
-    if (activeContent === lastQueuedContentRef.current) return;
+    if (!activePath || activeContent === lastQueuedContentRef.current) return;
     if (!isLoaded) {
       try {
         const scene = parseScene(activeContent, isMarkdownFormat);
-        const appState = { ...scene.appState, theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
+        const savedViewport = readExcalidrawViewport(vaultId, activePath);
+        const appState = { ...scene.appState, ...(savedViewport || {}), theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
         const files = scene.files || {}; savedFingerprintRef.current = sceneFingerprint(scene.elements, appState, files);
         latestSceneRef.current = { elements: scene.elements, appState, files }; setInitialData({ ...scene, appState }); setIsLoaded(true); setParseError(null);
       } catch (error) { setParseError(error instanceof Error ? error.message : String(error)); }
@@ -93,7 +97,8 @@ export const ExcalidrawView: React.FC = () => {
     try {
       const scene = parseScene(activeContent, isMarkdownFormat);
       setParseError(null);
-      const appState = { ...scene.appState, theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
+      const savedViewport = readExcalidrawViewport(vaultId, activePath);
+      const appState = { ...scene.appState, ...(savedViewport || {}), theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
       const fingerprint = sceneFingerprint(scene.elements, appState, scene.files || {});
       if (fingerprint === savedFingerprintRef.current) return;
       interactionRef.current = false; lastQueuedContentRef.current = null;
@@ -102,11 +107,14 @@ export const ExcalidrawView: React.FC = () => {
       excalidrawAPIRef.current.addFiles(Object.values(scene.files || {}));
       excalidrawAPIRef.current.updateScene({ elements: scene.elements, appState });
     } catch (error) { setParseError(error instanceof Error ? error.message : String(error)); }
-  }, [activeContent, isLoaded, isMarkdownFormat]);
+  }, [activePath, activeContent, isLoaded, isMarkdownFormat, vaultId]);
 
   const handleChange = useCallback((elements: readonly any[], appState: any, files: any) => {
     if (!isLoaded || !activePath || !excalidrawAPIRef.current || parseError) return;
     latestSceneRef.current = { elements: [...elements], appState, files };
+    if (interactionRef.current) {
+      writeExcalidrawViewport(vaultId, activePath, appState);
+    }
     const fingerprint = sceneFingerprint(elements, appState, files);
     if (!interactionRef.current) { savedFingerprintRef.current = fingerprint; return; }
     if (fingerprint === savedFingerprintRef.current) return;
@@ -117,7 +125,7 @@ export const ExcalidrawView: React.FC = () => {
       // This is the last queued scene, not an acknowledgement of a successful disk write.
       savedFingerprintRef.current = fingerprint;
     } catch (e) { setParseError(e instanceof Error ? e.message : String(e)); }
-  }, [isLoaded, activePath, activeContent, isMarkdownFormat, parseError, queueNoteSave]);
+  }, [isLoaded, activePath, activeContent, isMarkdownFormat, parseError, queueNoteSave, vaultId]);
 
   const registerAPI = useCallback((api: any) => {
     excalidrawAPIRef.current = api;
@@ -126,13 +134,14 @@ export const ExcalidrawView: React.FC = () => {
       const root = useVaultStore.getState();
       const content = root.drafts[activePath] ?? root.documents[activePath]?.content ?? activeContent;
       const scene = parseScene(content, isMarkdownFormat);
-      const appState = { ...scene.appState, theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
+      const savedViewport = readExcalidrawViewport(vaultId, activePath);
+      const appState = { ...scene.appState, ...(savedViewport || {}), theme: 'dark', viewBackgroundColor: scene.appState?.viewBackgroundColor || '#18181b' };
       interactionRef.current = false;
       savedFingerprintRef.current = sceneFingerprint(scene.elements, appState, scene.files || {});
       latestSceneRef.current = { elements: scene.elements, appState, files: scene.files || {} };
       api.addFiles(Object.values(scene.files || {})); api.updateScene({ elements: scene.elements, appState });
     } catch (error) { setParseError(error instanceof Error ? error.message : String(error)); }
-  }, [activePath, isMarkdownFormat]);
+  }, [activePath, isMarkdownFormat, vaultId]);
 
   // 4. Export handlers
   const handleExportPNG = async () => {
@@ -308,7 +317,7 @@ export const ExcalidrawView: React.FC = () => {
       </div>
 
       {/* Main Canvas Body strictly isolated */}
-      <div className="flex-1 w-full relative overflow-hidden bg-obsidian-bg min-h-0 excalidraw-container-wrapper" onPointerDownCapture={() => { interactionRef.current = true; }} onKeyDownCapture={() => { interactionRef.current = true; }} onPasteCapture={() => { interactionRef.current = true; }} onDropCapture={() => { interactionRef.current = true; }}>
+      <div className="flex-1 w-full relative overflow-hidden bg-obsidian-bg min-h-0 excalidraw-container-wrapper" onPointerDownCapture={() => { interactionRef.current = true; }} onWheelCapture={() => { interactionRef.current = true; }} onKeyDownCapture={() => { interactionRef.current = true; }} onPasteCapture={() => { interactionRef.current = true; }} onDropCapture={() => { interactionRef.current = true; }}>
         {showRawMarkdown ? (
           <div className="w-full h-full p-4 overflow-auto bg-obsidian-bg font-mono text-xs text-obsidian-text selection:bg-jade-500/30">
             <pre className="whitespace-pre-wrap leading-relaxed">{activeContent}</pre>

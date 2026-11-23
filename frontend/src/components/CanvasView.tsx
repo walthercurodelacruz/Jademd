@@ -2,15 +2,16 @@ import { MarkdownPreview } from './MarkdownPreview';
 import { usePaneState } from '../store/PaneContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { useVaultStore } from '../store/useVaultStore';
-import { Plus, ZoomIn, ZoomOut, RotateCcw, FileText, Move } from 'lucide-react';
+import { Plus, ZoomIn, ZoomOut, RotateCcw, FileText, Move, Play, ExternalLink, Globe } from 'lucide-react';
 
-import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds } from '../utils/canvasDocument';
+import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget, readCanvasViewport, writeCanvasViewport } from '../utils/canvasDocument';
 
 export const CanvasView: React.FC = () => {
-  const { activePath, activeContent, queueNoteSave, openNote, navigateToLink, setNoteMode } = usePaneState();
+  const { activePath, activeContent, queueNoteSave, navigateToLink, vault } = usePaneState();
+  const vaultId = vault?.id;
   const [data, setData] = useState<CanvasData>({ nodes: [], edges: [] });
-  const [pan, setPan] = useState({ x: 400, y: 300 });
-  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState(() => (activePath ? readCanvasViewport(vaultId, activePath)?.pan : null) || { x: 400, y: 300 });
+  const [zoom, setZoom] = useState(() => (activePath ? readCanvasViewport(vaultId, activePath)?.zoom : null) || 1);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -20,6 +21,7 @@ export const CanvasView: React.FC = () => {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState(false);
+  const [activeVideoIds, setActiveVideoIds] = useState<Record<string, boolean>>({});
   const [operationError, setOperationError] = useState('');
   const [arrowId] = useState(() => `canvas-arrow-${crypto.randomUUID()}`);
   const point = (event: React.MouseEvent) => { const rect = containerRef.current!.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; };
@@ -33,6 +35,20 @@ export const CanvasView: React.FC = () => {
       setParseError(`No se puede editar este lienzo: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [activePath, activeContent]);
+
+  useEffect(() => {
+    if (!activePath) return;
+    const saved = readCanvasViewport(vaultId, activePath);
+    if (saved) {
+      setPan(saved.pan);
+      setZoom(saved.zoom);
+    }
+  }, [activePath, vaultId]);
+
+  useEffect(() => {
+    if (!activePath || isPanning) return;
+    writeCanvasViewport(vaultId, activePath, { pan, zoom });
+  }, [activePath, vaultId, pan, zoom, isPanning]);
 
   const saveCanvas = (updated: CanvasData) => {
     setData(updated);
@@ -313,6 +329,8 @@ export const CanvasView: React.FC = () => {
               <div className="flex items-center gap-1.5 truncate">
                 {node.type === 'file' ? (
                   <FileText size={13} className="text-jade-400 shrink-0" />
+                ) : node.type === 'link' ? (
+                  <Globe size={13} className="text-jade-400 shrink-0" />
                 ) : (
                   <Move size={12} className="text-obsidian-muted shrink-0" />
                 )}
@@ -331,10 +349,21 @@ export const CanvasView: React.FC = () => {
                   Abrir
                 </button>
               )}
+              {node.type === 'link' && activeVideoIds[node.id] && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveVideoIds((prev) => ({ ...prev, [node.id]: false }));
+                  }}
+                  className="px-1.5 py-0.5 rounded bg-obsidian-card text-obsidian-muted hover:text-white text-[10px] shrink-0"
+                >
+                  Miniatura
+                </button>
+              )}
             </div>
 
             {/* Node Content */}
-            <div className="p-3 text-xs text-obsidian-text flex-1">
+            <div className={`${node.type === 'link' || (node.type === 'file' && isPdfTarget(node.file)) ? 'p-0' : 'p-3'} text-xs text-obsidian-text flex-1 flex flex-col min-h-0 overflow-hidden`}>
               {node.type === 'text' && previewText ? (<div className="h-full overflow-auto" onMouseDown={(event) => event.stopPropagation()}><MarkdownPreview content={node.text || ''} path={activePath || ''} /></div>) : node.type === 'text' ? (
                 <textarea
                   value={node.text || ''}
@@ -349,9 +378,115 @@ export const CanvasView: React.FC = () => {
                   backgroundSize: node.backgroundStyle === 'ratio' ? 'contain' : node.backgroundStyle === 'repeat' ? 'auto' : 'cover',
                   backgroundRepeat: node.backgroundStyle === 'repeat' ? 'repeat' : 'no-repeat', backgroundPosition: 'center',
                 }} />
-              ) : node.type === 'link' ? (
-                <a href={typeof node.url === 'string' && /^https?:\/\//i.test(node.url) ? node.url : undefined}
-                  onMouseDown={(event) => event.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-jade-300 underline break-all">{String(node.url || '')}</a>
+              ) : node.type === 'link' ? (() => {
+                const rawUrl = typeof node.url === 'string' && /^https?:\/\//i.test(node.url) ? node.url : '';
+                const ytId = extractYouTubeId(rawUrl);
+                if (ytId) {
+                  const isPlaying = Boolean(activeVideoIds[node.id]);
+                  return (
+                    <div className="relative w-full h-full flex flex-col bg-black overflow-hidden">
+                      {isPlaying ? (
+                        <iframe
+                          title={`YouTube ${ytId}`}
+                          src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&rel=0`}
+                          className="w-full flex-1 border-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="relative w-full flex-1 min-h-0 group/yt overflow-hidden bg-zinc-950 flex items-center justify-center">
+                          <img
+                            draggable={false}
+                            src={`https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`}
+                            alt={`Vista previa de YouTube (${ytId})`}
+                            className="w-full h-full object-cover opacity-90 group-hover/yt:scale-[1.02] group-hover/yt:opacity-100 transition duration-200"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                          <button
+                            type="button"
+                            aria-label="Reproducir video de YouTube"
+                            title="Reproducir video en el lienzo"
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveVideoIds((prev) => ({ ...prev, [node.id]: true }));
+                            }}
+                            className="absolute z-10 w-14 h-10 rounded-xl bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-xl shadow-black/60 transition transform group-hover/yt:scale-110 cursor-pointer"
+                          >
+                            <Play size={20} className="fill-white ml-0.5" />
+                          </button>
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 border border-white/10 text-[10px] font-semibold text-red-400 tracking-wide">
+                            YouTube
+                          </div>
+                        </div>
+                      )}
+                      <div className="px-3 py-1.5 bg-[#18181b] border-t border-obsidian-border/50 flex items-center justify-between gap-2 shrink-0">
+                        <a
+                          href={rawUrl || undefined}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-jade-300 hover:text-jade-200 underline truncate text-[11px] flex items-center gap-1"
+                        >
+                          <span className="truncate">{rawUrl}</span>
+                          <ExternalLink size={11} className="shrink-0" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
+                if (isPdfTarget(rawUrl)) {
+                  return (
+                    <div
+                      className="w-full h-full flex flex-col bg-zinc-900 overflow-hidden"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <iframe
+                        title={rawUrl}
+                        src={rawUrl}
+                        className="w-full flex-1 border-0 bg-zinc-900"
+                      />
+                      <div className="px-3 py-1.5 bg-[#18181b] border-t border-obsidian-border/50 flex items-center justify-between gap-2 shrink-0">
+                        <a
+                          href={rawUrl || undefined}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-jade-300 hover:text-jade-200 underline truncate text-[11px] flex items-center gap-1"
+                        >
+                          <span className="truncate">{rawUrl}</span>
+                          <ExternalLink size={11} className="shrink-0" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-3 h-full flex flex-col justify-between">
+                    <a
+                      href={rawUrl || undefined}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-jade-300 hover:text-jade-200 underline break-all flex items-start gap-1.5"
+                    >
+                      <span>{String(node.url || '')}</span>
+                      <ExternalLink size={12} className="shrink-0 mt-0.5" />
+                    </a>
+                  </div>
+                );
+              })() : node.type === 'file' && isPdfTarget(node.file) ? (
+                <div
+                  className="w-full h-full flex flex-col bg-zinc-900 overflow-hidden"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <iframe
+                    title={String(node.file)}
+                    src={`/api/asset?path=${encodeURIComponent(String(node.file))}&source=${encodeURIComponent(activePath || '')}${typeof node.subpath === 'string' ? node.subpath : ''}`}
+                    className="w-full flex-1 border-0 bg-zinc-900"
+                  />
+                </div>
               ) : node.type === 'file' && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(node.file || '') ? (<img draggable={false} alt={node.file} className="w-full h-full object-contain" src={`/api/asset?path=${encodeURIComponent(node.file!)}&source=${encodeURIComponent(activePath || '')}`} />) : (
                 <div className="text-obsidian-muted flex flex-col justify-center items-center h-full py-4 text-center">
                   <FileText size={24} className="mb-2 text-jade-400" />

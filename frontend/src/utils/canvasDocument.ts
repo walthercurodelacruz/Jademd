@@ -96,3 +96,95 @@ export function canvasViewBounds(data: CanvasData, width: number, height: number
   const zoom = Math.min(2, Math.max(0.1, Math.min((width-80)/Math.max(1,right-left), (height-80)/Math.max(1,bottom-top))));
   return { zoom, pan: { x: width/2-(left+right)/2*zoom, y: height/2-(top+bottom)/2*zoom } };
 }
+
+/**
+ * Extracts the 11-character YouTube video ID from standard watch, short, embed, shorts, or live URLs.
+ * (JMD-BUG-004)
+ */
+export function extractYouTubeId(rawUrl?: unknown): string | null {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) return null;
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const host = parsed.hostname.replace(/^(?:www\.|m\.)/i, '').toLowerCase();
+    let candidate: string | null = null;
+    if (host === 'youtu.be') {
+      candidate = parsed.pathname.split('/').filter(Boolean)[0] || null;
+    } else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      if (parsed.pathname === '/watch') {
+        candidate = parsed.searchParams.get('v');
+      } else {
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        if (parts.length >= 2 && ['embed', 'shorts', 'live', 'v'].includes(parts[0])) {
+          candidate = parts[1];
+        }
+      }
+    }
+    return candidate && /^[a-zA-Z0-9_-]{11}$/.test(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks whether a vault file path or HTTP(S) URL points to a PDF document.
+ * (JMD-BUG-005)
+ */
+export function isPdfTarget(rawTarget?: unknown): boolean {
+  if (typeof rawTarget !== 'string' || !rawTarget.trim()) return false;
+  const clean = rawTarget.trim().split(/[?#]/)[0];
+  return /\.pdf$/i.test(clean);
+}
+
+export interface CanvasViewport {
+  pan: { x: number; y: number };
+  zoom: number;
+}
+
+const canvasViewportKey = (vaultId: string | undefined, path: string) =>
+  `jademd:canvas-viewport:${vaultId || 'default'}:${path}`;
+
+/**
+ * Reads persisted Canvas pan/zoom viewport for a document.
+ * (JMD-BUG-006)
+ */
+export function readCanvasViewport(vaultId: string | undefined, path: string): CanvasViewport | null {
+  try {
+    const raw = localStorage.getItem(canvasViewportKey(vaultId, path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.pan?.x === 'number' && Number.isFinite(parsed.pan.x) &&
+      typeof parsed?.pan?.y === 'number' && Number.isFinite(parsed.pan.y) &&
+      typeof parsed?.zoom === 'number' && Number.isFinite(parsed.zoom) && parsed.zoom > 0
+    ) {
+      return { pan: { x: parsed.pan.x, y: parsed.pan.y }, zoom: parsed.zoom };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists Canvas pan/zoom viewport in localStorage without dirtying the .canvas file.
+ * (JMD-BUG-006)
+ */
+export function writeCanvasViewport(
+  vaultId: string | undefined,
+  path: string,
+  viewport: CanvasViewport,
+): void {
+  if (
+    !Number.isFinite(viewport.pan.x) ||
+    !Number.isFinite(viewport.pan.y) ||
+    !Number.isFinite(viewport.zoom) ||
+    viewport.zoom <= 0
+  ) {
+    return;
+  }
+  try {
+    localStorage.setItem(canvasViewportKey(vaultId, path), JSON.stringify(viewport));
+  } catch {
+    /* ignore storage quota errors */
+  }
+}

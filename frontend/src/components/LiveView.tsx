@@ -48,6 +48,8 @@ export const LiveView: React.FC<Props> = ({ content, path, readOnly = false }) =
   const [requiresSource, setRequiresSource] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [uploadToast, setUploadToast] = useState<string | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkInput, setLinkInput] = useState('');
 
   const sourceRef = useRef<SourceDocument | null>(null);
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
@@ -218,11 +220,17 @@ export const LiveView: React.FC<Props> = ({ content, path, readOnly = false }) =
     e.target.value = '';
   };
 
-  // Helper actions for toolbar
+  // Helper actions for toolbar (Electron-safe without window.prompt)
   const addLink = () => {
-    const previousUrl = editor?.getAttributes('link').href;
-    const url = prompt('URL o enlace:', previousUrl);
-    if (url === null) return;
+    const previousUrl = editor?.getAttributes('link').href || '';
+    setLinkInput(previousUrl);
+    setLinkModalOpen(true);
+  };
+
+  const applyLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLinkModalOpen(false);
+    const url = linkInput.trim();
     if (url === '') {
       editor?.chain().focus().extendMarkRange('link').unsetLink().run();
       return;
@@ -250,6 +258,39 @@ export const LiveView: React.FC<Props> = ({ content, path, readOnly = false }) =
       />
 
       {uploadToast && <div role="status" className="px-4 py-2 text-xs text-jade-300">{uploadToast}</div>}
+
+      {linkModalOpen && (
+        <form
+          onSubmit={applyLink}
+          className="px-4 py-2 bg-obsidian-card border-b border-obsidian-border flex items-center gap-2 text-xs z-20"
+        >
+          <LinkIcon size={13} className="text-jade-400 shrink-0" />
+          <input
+            type="text"
+            autoFocus
+            value={linkInput}
+            onChange={(e) => setLinkInput(e.target.value)}
+            placeholder="Introduce URL o ruta de enlace (deja vacío para quitar)..."
+            className="flex-1 bg-obsidian-bg border border-obsidian-border rounded px-2.5 py-1 text-obsidian-text focus:outline-none focus:border-jade-500"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setLinkModalOpen(false);
+              }
+            }}
+          />
+          <button type="submit" className="px-2.5 py-1 bg-jade-600 hover:bg-jade-500 text-white rounded font-medium">
+            Aplicar
+          </button>
+          <button
+            type="button"
+            onClick={() => setLinkModalOpen(false)}
+            className="px-2 py-1 text-obsidian-muted hover:text-white"
+          >
+            Cancelar
+          </button>
+        </form>
+      )}
 
       {/* Rich Formatting Toolbar (Matching User Screenshot Layout) */}
       <div className={`${readOnly || requiresSource ? 'hidden' : ''} workspace-format h-11 px-3 border-b border-obsidian-border bg-obsidian-bg/95 flex items-center gap-1 overflow-x-auto select-none flex-shrink-0 z-10 text-obsidian-muted`}>

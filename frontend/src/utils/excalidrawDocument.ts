@@ -70,3 +70,63 @@ export function sceneFingerprint(elements: readonly any[], appState: Record<stri
   return JSON.stringify([elements,
     appState.viewBackgroundColor, appState.gridSize, appState.currentItemStrokeColor, appState.currentItemBackgroundColor, files]);
 }
+
+export interface ExcalidrawViewport {
+  scrollX: number;
+  scrollY: number;
+  zoom: { value: number };
+}
+
+const excalidrawViewportKey = (vaultId: string | undefined, path: string) =>
+  `jademd:excalidraw-viewport:${vaultId || 'default'}:${path}`;
+
+/**
+ * Reads persisted Excalidraw camera position (scrollX, scrollY, zoom) for a document.
+ * (JMD-BUG-006)
+ */
+export function readExcalidrawViewport(vaultId: string | undefined, path: string): ExcalidrawViewport | null {
+  try {
+    const raw = localStorage.getItem(excalidrawViewportKey(vaultId, path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const zoomValue = parsed?.zoom?.value;
+    if (
+      typeof parsed?.scrollX === 'number' && Number.isFinite(parsed.scrollX) &&
+      typeof parsed?.scrollY === 'number' && Number.isFinite(parsed.scrollY) &&
+      typeof zoomValue === 'number' && Number.isFinite(zoomValue) && zoomValue > 0
+    ) {
+      return { scrollX: parsed.scrollX, scrollY: parsed.scrollY, zoom: { value: zoomValue } };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists Excalidraw camera position (scrollX, scrollY, zoom) in localStorage without dirtying the file.
+ * (JMD-BUG-006)
+ */
+export function writeExcalidrawViewport(
+  vaultId: string | undefined,
+  path: string,
+  appState: Record<string, any> | null | undefined,
+): void {
+  if (!appState) return;
+  const zoomValue = typeof appState.zoom === 'number' ? appState.zoom : appState.zoom?.value;
+  if (
+    typeof appState.scrollX !== 'number' || !Number.isFinite(appState.scrollX) ||
+    typeof appState.scrollY !== 'number' || !Number.isFinite(appState.scrollY) ||
+    typeof zoomValue !== 'number' || !Number.isFinite(zoomValue) || zoomValue <= 0
+  ) {
+    return;
+  }
+  try {
+    localStorage.setItem(
+      excalidrawViewportKey(vaultId, path),
+      JSON.stringify({ scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: { value: zoomValue } }),
+    );
+  } catch {
+    /* ignore storage quota errors */
+  }
+}

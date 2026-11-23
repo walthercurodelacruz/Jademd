@@ -103,3 +103,33 @@ it('downloads a binary original through the asset endpoint instead of an empty t
   await act(async () => root.render(<ExportPanel />)); await click('Descargar original');
   expect(download).toHaveBeenCalledOnce(); useExportPanel.getState().close();
 });
+it('renders YouTube thumbnail previews on Canvas link cards and switches to embedded player on play (JMD-BUG-004)', async () => {
+  const data = {
+    nodes: [{ id: 'yt1', type: 'link', x: 0, y: 0, width: 320, height: 220, url: 'https://www.youtube.com/watch?v=WUN7p3D8FyY' }],
+    edges: [],
+  };
+  await open('Calculadoras.canvas', JSON.stringify(data));
+  await act(async () => root.render(<CanvasView />));
+  const thumb = container.querySelector<HTMLImageElement>('img[src*="i.ytimg.com/vi/WUN7p3D8FyY/hqdefault.jpg"]');
+  expect(thumb).not.toBeNull();
+  const playBtn = container.querySelector<HTMLButtonElement>('[aria-label="Reproducir video de YouTube"]')!;
+  expect(playBtn).not.toBeNull();
+  await act(async () => playBtn.click());
+  const iframe = container.querySelector<HTMLIFrameElement>('iframe[src*="youtube-nocookie.com/embed/WUN7p3D8FyY"]');
+  expect(iframe).not.toBeNull();
+});
+it('renders embedded PDF iframes for both external PDF links and local PDF files on Canvas (JMD-BUG-005)', async () => {
+  const data = {
+    nodes: [
+      { id: 'pdf-link', type: 'link', x: 0, y: 0, width: 320, height: 320, url: 'https://dpetersanderson.github.io/fp288-vollmar.pdf' },
+      { id: 'pdf-file', type: 'file', x: 360, y: 0, width: 320, height: 320, file: 'Recursos Generales/Pdfs/sare_vn.pdf' },
+    ],
+    edges: [],
+  };
+  await open('Referencia Articulos.canvas', JSON.stringify(data));
+  await act(async () => root.render(<CanvasView />));
+  const linkFrame = container.querySelector<HTMLIFrameElement>('iframe[src="https://dpetersanderson.github.io/fp288-vollmar.pdf"]');
+  const fileFrame = container.querySelector<HTMLIFrameElement>('iframe[src*="/api/asset?path=Recursos%20Generales%2FPdfs%2Fsare_vn.pdf"]');
+  expect(linkFrame).not.toBeNull();
+  expect(fileFrame).not.toBeNull();
+});

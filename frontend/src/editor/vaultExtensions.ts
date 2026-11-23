@@ -70,6 +70,50 @@ export const VaultImage = Image.extend<ImageOptions & { media: MediaPolicy }>({
 });
 
 
+export const VaultHighlight = Highlight.extend({
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: (element) => {
+          const dataColor = element.getAttribute('data-color');
+          if (dataColor) return dataColor;
+          const styleAttr = element.getAttribute('style') || '';
+          const match = styleAttr.match(/background(?:-color)?\s*:\s*([^;"]+)/i);
+          return match ? match[1].trim() : element.style.backgroundColor || null;
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.color) {
+            return {
+              class: 'bg-amber-400/20 text-amber-200 px-1 py-0.5 rounded',
+            };
+          }
+          return {
+            'data-color': attributes.color,
+            class: 'px-1 py-0.5 rounded',
+            style: `background: ${attributes.color}; color: #18181b; font-weight: 500`,
+          };
+        },
+      },
+    };
+  },
+  addStorage() {
+    return {
+      markdown: {
+        serialize: {
+          open: (_state: unknown, mark: { attrs: { color?: string | null } }) =>
+            mark.attrs.color ? `<mark style="background: ${mark.attrs.color};">` : '==',
+          close: (_state: unknown, mark: { attrs: { color?: string | null } }) =>
+            mark.attrs.color ? '</mark>' : '==',
+          mixable: true,
+          expelEnclosingWhitespace: true,
+        },
+        parse: {},
+      },
+    };
+  },
+});
+
 export function createVaultExtensions(path: string, readOnly = false, _onEditSource?: () => void, options: { renderNoteEmbeds?: boolean; media?: MediaPolicy } = {}) {
   const { renderNoteEmbeds = true, media = 'all' } = options;
   return [
@@ -93,11 +137,8 @@ export function createVaultExtensions(path: string, readOnly = false, _onEditSou
         },
       }),
       Underline,
-      Highlight.configure({
+      VaultHighlight.configure({
         multicolor: true,
-        HTMLAttributes: {
-          class: 'bg-amber-400/20 text-amber-200 px-1 py-0.5 rounded',
-        },
       }),
       Markdown.configure({
         html: true,
