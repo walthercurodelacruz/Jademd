@@ -26,7 +26,23 @@ esac
 (cd desktop && npm ci && npm run dist -- "${target_args[@]}")
 
 if [[ "${1:-}" == linux ]]; then
-  "$root/scripts/package-desktop-deb.sh"
+  built_linux_pkg=0
+  if command -v dpkg-deb >/dev/null 2>&1; then
+    "$root/scripts/package-desktop-deb.sh"
+    built_linux_pkg=1
+  else
+    echo 'Aviso: dpkg-deb no encontrado; se omite la generación del paquete .deb.' >&2
+  fi
+  if command -v rpmbuild >/dev/null 2>&1; then
+    "$root/scripts/package-desktop-rpm.sh"
+    built_linux_pkg=1
+  else
+    echo 'Aviso: rpmbuild no encontrado; se omite la generación del paquete .rpm.' >&2
+  fi
+  if [[ "$built_linux_pkg" -eq 0 ]]; then
+    echo 'Error: no se encontró dpkg-deb ni rpmbuild para empaquetar en Linux.' >&2
+    exit 1
+  fi
 fi
 
 if [[ "${1:-}" == windows ]]; then
