@@ -134,3 +134,57 @@ export function isPdfTarget(rawTarget?: unknown): boolean {
   const clean = rawTarget.trim().split(/[?#]/)[0];
   return /\.pdf$/i.test(clean);
 }
+
+export interface CanvasViewport {
+  pan: { x: number; y: number };
+  zoom: number;
+}
+
+const canvasViewportKey = (vaultId: string | undefined, path: string) =>
+  `jademd:canvas-viewport:${vaultId || 'default'}:${path}`;
+
+/**
+ * Reads persisted Canvas pan/zoom viewport for a document.
+ * (JMD-BUG-006)
+ */
+export function readCanvasViewport(vaultId: string | undefined, path: string): CanvasViewport | null {
+  try {
+    const raw = localStorage.getItem(canvasViewportKey(vaultId, path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.pan?.x === 'number' && Number.isFinite(parsed.pan.x) &&
+      typeof parsed?.pan?.y === 'number' && Number.isFinite(parsed.pan.y) &&
+      typeof parsed?.zoom === 'number' && Number.isFinite(parsed.zoom) && parsed.zoom > 0
+    ) {
+      return { pan: { x: parsed.pan.x, y: parsed.pan.y }, zoom: parsed.zoom };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists Canvas pan/zoom viewport in localStorage without dirtying the .canvas file.
+ * (JMD-BUG-006)
+ */
+export function writeCanvasViewport(
+  vaultId: string | undefined,
+  path: string,
+  viewport: CanvasViewport,
+): void {
+  if (
+    !Number.isFinite(viewport.pan.x) ||
+    !Number.isFinite(viewport.pan.y) ||
+    !Number.isFinite(viewport.zoom) ||
+    viewport.zoom <= 0
+  ) {
+    return;
+  }
+  try {
+    localStorage.setItem(canvasViewportKey(vaultId, path), JSON.stringify(viewport));
+  } catch {
+    /* ignore storage quota errors */
+  }
+}

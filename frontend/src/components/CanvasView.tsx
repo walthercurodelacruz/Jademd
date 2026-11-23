@@ -4,13 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useVaultStore } from '../store/useVaultStore';
 import { Plus, ZoomIn, ZoomOut, RotateCcw, FileText, Move, Play, ExternalLink, Globe } from 'lucide-react';
 
-import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget } from '../utils/canvasDocument';
+import { CanvasData, CanvasNode, parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget, readCanvasViewport, writeCanvasViewport } from '../utils/canvasDocument';
 
 export const CanvasView: React.FC = () => {
-  const { activePath, activeContent, queueNoteSave, openNote, navigateToLink, setNoteMode } = usePaneState();
+  const { activePath, activeContent, queueNoteSave, navigateToLink, vault } = usePaneState();
+  const vaultId = vault?.id;
   const [data, setData] = useState<CanvasData>({ nodes: [], edges: [] });
-  const [pan, setPan] = useState({ x: 400, y: 300 });
-  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState(() => (activePath ? readCanvasViewport(vaultId, activePath)?.pan : null) || { x: 400, y: 300 });
+  const [zoom, setZoom] = useState(() => (activePath ? readCanvasViewport(vaultId, activePath)?.zoom : null) || 1);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -34,6 +35,20 @@ export const CanvasView: React.FC = () => {
       setParseError(`No se puede editar este lienzo: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, [activePath, activeContent]);
+
+  useEffect(() => {
+    if (!activePath) return;
+    const saved = readCanvasViewport(vaultId, activePath);
+    if (saved) {
+      setPan(saved.pan);
+      setZoom(saved.zoom);
+    }
+  }, [activePath, vaultId]);
+
+  useEffect(() => {
+    if (!activePath || isPanning) return;
+    writeCanvasViewport(vaultId, activePath, { pan, zoom });
+  }, [activePath, vaultId, pan, zoom, isPanning]);
 
   const saveCanvas = (updated: CanvasData) => {
     setData(updated);

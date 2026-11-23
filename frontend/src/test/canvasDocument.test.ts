@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget } from '../utils/canvasDocument';
+import { parseCanvas, serializeCanvas, canvasColor, edgeGeometry, removeCanvasNode, connectCanvasNodes, canvasViewBounds, extractYouTubeId, isPdfTarget, readCanvasViewport, writeCanvasViewport } from '../utils/canvasDocument';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -82,5 +83,11 @@ describe('Canvas editing operations', () => {
     expect(isPdfTarget('https://example.com/doc.PDF?dl=1#page=2')).toBe(true);
     expect(isPdfTarget('Notas/Resumen.md')).toBe(false);
     expect(isPdfTarget('https://www.youtube.com/watch?v=WUN7p3D8FyY')).toBe(false);
+  });
+  it('persists and restores Canvas pan and zoom viewport per vault and path (JMD-BUG-006)', () => {
+    localStorage.clear();
+    writeCanvasViewport('vault-1', 'Mapa.canvas', { pan: { x: -180, y: 95 }, zoom: 0.75 });
+    expect(readCanvasViewport('vault-1', 'Mapa.canvas')).toEqual({ pan: { x: -180, y: 95 }, zoom: 0.75 });
+    expect(readCanvasViewport('vault-2', 'Mapa.canvas')).toBeNull();
   });
 });
